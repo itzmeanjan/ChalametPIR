@@ -1,3 +1,5 @@
+use sha3::{Digest, Sha3_256};
+
 #[inline]
 pub fn segment_length(arity: u32, size: u32) -> u32 {
     if size == 0 {
@@ -63,4 +65,17 @@ pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
             })
         })
         .fold(0, |acc, r| acc.overflowing_add(r).0)
+}
+
+pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
+    let mut hasher = Sha3_256::new();
+    hasher.update(key);
+    let digest_bytes = hasher.finalize();
+
+    [
+        u64::from_le_bytes(digest_bytes[..8].try_into().unwrap()),
+        u64::from_le_bytes(digest_bytes[8..16].try_into().unwrap()),
+        u64::from_le_bytes(digest_bytes[16..24].try_into().unwrap()),
+        u64::from_le_bytes(digest_bytes[24..].try_into().unwrap()),
+    ]
 }
