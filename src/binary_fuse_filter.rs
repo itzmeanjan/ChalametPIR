@@ -79,3 +79,22 @@ pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
         u64::from_le_bytes(digest_bytes[24..].try_into().unwrap()),
     ]
 }
+
+#[inline]
+pub const fn hash_batch(
+    hash: u64,
+    segment_length: u32,
+    segment_count_length: u32,
+) -> (u32, u32, u32) {
+    let segment_length_mask = segment_length - 1;
+    let hi = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
+
+    let h0 = hi as u32;
+    let mut h1 = h0 + segment_length;
+    let mut h2 = h1 + segment_length;
+
+    h1 ^= ((hash >> 18) as u32) & segment_length_mask;
+    h2 ^= (hash as u32) & segment_length_mask;
+
+    (h0, h1, h2)
+}
