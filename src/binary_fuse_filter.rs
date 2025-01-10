@@ -1,4 +1,5 @@
 use sha3::{Digest, Sha3_256};
+use std::cmp::min;
 
 #[inline(always)]
 pub fn segment_length(arity: u32, size: u32) -> u32 {
@@ -98,4 +99,15 @@ pub const fn hash_batch(
     h2 ^= (hash as u32) & segment_length_mask;
 
     (h0, h1, h2)
+}
+#[inline(always)]
+pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
+    let mut word = 0;
+    let readable_num_bytes = min(bytes.len(), std::mem::size_of::<u64>());
+
+    for i in 0..readable_num_bytes {
+        word |= (bytes[i] as u64) << (i * 8);
+    }
+
+    word
 }
