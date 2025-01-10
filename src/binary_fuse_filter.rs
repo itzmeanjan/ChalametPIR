@@ -1,6 +1,6 @@
 use sha3::{Digest, Sha3_256};
 
-#[inline]
+#[inline(always)]
 pub fn segment_length(arity: u32, size: u32) -> u32 {
     if size == 0 {
         return 4;
@@ -13,7 +13,7 @@ pub fn segment_length(arity: u32, size: u32) -> u32 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn size_factor(arity: u32, size: u32) -> f64 {
     match arity {
         3 => 1.125_f64.max(0.875 + 0.25 * 1e6_f64.ln() / (size as f64).ln()),
@@ -22,7 +22,7 @@ pub fn size_factor(arity: u32, size: u32) -> f64 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub const fn mod3(x: u8) -> u8 {
     if x > 2 {
         x - 3
@@ -33,7 +33,7 @@ pub const fn mod3(x: u8) -> u8 {
 
 /// Computes a 64-bit MurmurHash3-like hash from a 64-bit input.
 /// See https://github.com/aappleby/smhasher/blob/0ff96f7835817a27d0487325b6c16033e2992eb5/src/MurmurHash3.cpp#L81-L90.
-#[inline]
+#[inline(always)]
 pub const fn murmur64(mut h: u64) -> u64 {
     h ^= h >> 33;
     h *= 0xff51_afd7_ed55_8ccd;
@@ -44,12 +44,12 @@ pub const fn murmur64(mut h: u64) -> u64 {
     return h;
 }
 
-#[inline]
+#[inline(always)]
 pub const fn mix(key: u64, seed: u64) -> u64 {
     murmur64(key.overflowing_add(seed).0)
 }
 
-#[inline]
+#[inline(always)]
 pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
     let seed_words = [
         u64::from_le_bytes(seed[..8].try_into().unwrap()),
@@ -67,6 +67,7 @@ pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
 
+#[inline(always)]
 pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
     let mut hasher = Sha3_256::new();
     hasher.update(key);
