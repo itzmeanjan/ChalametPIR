@@ -100,6 +100,96 @@ pub const fn hash_batch(
 
     (h0, h1, h2)
 }
+
+#[inline]
+pub fn encode_kv_as_row(
+    key: &[u8],
+    value: &[u8],
+    mat_elem_bit_len: usize,
+    num_cols: usize,
+) -> Vec<u32> {
+    let hashed_key = {
+        let mut hasher = Sha3_256::new();
+        hasher.update(key);
+
+        let mut hashed_key = [0u8; 32];
+        hasher.finalize_into((&mut hashed_key).into());
+        hashed_key
+    };
+
+    let mut row = vec![0u32; num_cols];
+    let mut row_offset = 0;
+
+    let mat_elem_mask = 1u64 << mat_elem_bit_len;
+
+    let mut buffer = 0u64;
+    let mut buf_num_bits = 0usize;
+
+    let mut byte_offset = 0;
+    while byte_offset < hashed_key.len() {
+        let remaining_num_bytes = hashed_key.len() - byte_offset;
+
+        let unset_num_bits = 64 - buf_num_bits;
+        let fillable_num_bits = unset_num_bits & 8usize.wrapping_neg();
+        let fillable_num_bytes = min(fillable_num_bits / 8, remaining_num_bytes);
+        let read_num_bits = fillable_num_bytes * 8;
+
+        let till_key_bytes_idx = byte_offset + fillable_num_bytes;
+        let read_word = u64_from_le_bytes(&hashed_key[byte_offset..till_key_bytes_idx]);
+        byte_offset = till_key_bytes_idx;
+
+        buffer |= read_word << buf_num_bits;
+        buf_num_bits += read_num_bits;
+
+        let fillable_num_elems = buf_num_bits / mat_elem_bit_len;
+
+        for elem_idx in 0..fillable_num_elems {
+            let elem = (buffer & mat_elem_mask) as u32;
+            row[row_offset + elem_idx] = elem;
+
+            buffer >>= mat_elem_bit_len;
+            buf_num_bits -= mat_elem_bit_len;
+        }
+
+        row_offset += fillable_num_elems;
+    }
+
+    byte_offset = 0;
+    while byte_offset < value.len() {
+        let remaining_num_bytes = hashed_key.len() - byte_offset;
+
+        let unset_num_bits = 64 - buf_num_bits;
+        let fillable_num_bits = unset_num_bits & 8usize.wrapping_neg();
+        let fillable_num_bytes = min(fillable_num_bits / 8, remaining_num_bytes);
+        let read_num_bits = fillable_num_bytes * 8;
+
+        let till_value_bytes_idx = byte_offset + fillable_num_bytes;
+        let read_word = u64_from_le_bytes(&value[byte_offset..till_value_bytes_idx]);
+        byte_offset = till_value_bytes_idx;
+
+        buffer |= read_word << buf_num_bits;
+        buf_num_bits += read_num_bits;
+
+        let fillable_num_elems = buf_num_bits / mat_elem_bit_len;
+
+        for elem_idx in 0..fillable_num_elems {
+            let elem = (buffer & mat_elem_mask) as u32;
+            row[row_offset + elem_idx] = elem;
+
+            buffer >>= mat_elem_bit_len;
+            buf_num_bits -= mat_elem_bit_len;
+        }
+
+        row_offset += fillable_num_elems;
+    }
+
+    if (buf_num_bits > 0) && (row_offset < num_cols) {
+        row[row_offset] = (buffer & mat_elem_mask) as u32;
+    }
+
+    row
+}
+
 #[inline(always)]
 pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     let mut word = 0;
