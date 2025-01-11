@@ -240,11 +240,12 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
     let value_boundary = 0x81;
     match kv.iter().rev().position(|&v| v == value_boundary) {
         Some(boundary_idx_from_back) => {
-            let boundary_idx_from_front = (kv.len() - 1) - boundary_idx_from_back;
-            let sum_of_values_post_boundary = kv[boundary_idx_from_front..]
+            let last_idx_of_kv = kv.len() - 1;
+            let boundary_idx_from_front = last_idx_of_kv - boundary_idx_from_back;
+            let is_zeroed_post_boundary = kv[boundary_idx_from_front + 1..]
                 .iter()
-                .fold(0u8, |acc, &cur| acc.wrapping_add(cur));
-            if sum_of_values_post_boundary == value_boundary && boundary_idx_from_front > 32 {
+                .fold(true, |acc, &cur| acc & (cur == 0));
+            if is_zeroed_post_boundary && boundary_idx_from_front > 32 {
                 kv.truncate(boundary_idx_from_front);
                 Some(kv)
             } else {
