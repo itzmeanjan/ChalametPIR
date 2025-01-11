@@ -183,8 +183,19 @@ pub fn encode_kv_as_row(
         row_offset += fillable_num_elems;
     }
 
-    if (buf_num_bits > 0) && (row_offset < num_cols) {
-        row[row_offset] = (buffer & mat_elem_mask) as u32;
+    let value_boundary = 0x81;
+    buffer |= value_boundary << buf_num_bits;
+    buf_num_bits += 8;
+
+    while buf_num_bits > 0 {
+        let readble_num_bits = min(buf_num_bits, mat_elem_bit_len);
+
+        let elem = (buffer & mat_elem_mask) as u32;
+        row[row_offset] = elem;
+
+        buffer >>= readble_num_bits;
+        buf_num_bits -= readble_num_bits;
+        row_offset += 1;
     }
 
     row
