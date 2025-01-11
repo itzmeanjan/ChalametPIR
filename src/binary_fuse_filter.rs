@@ -202,10 +202,9 @@ pub fn encode_kv_as_row(
 }
 
 #[inline]
-pub fn decode_kv_as_row(row: &[u32], mat_elem_bit_len: usize) -> Vec<u8> {
-    let num_extractable_bits_from_row = row.len() * mat_elem_bit_len;
-    let num_bytes_to_represent_kv = num_extractable_bits_from_row / 8;
-    let num_bits_to_be_extracted = num_bytes_to_represent_kv * 8;
+pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8>> {
+    let num_extractable_bits = (row.len() * mat_elem_bit_len) & 8usize.wrapping_neg();
+    let num_bytes_to_represent_kv = num_extractable_bits / 8;
 
     let mut kv = vec![0u8; num_bytes_to_represent_kv];
     let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
@@ -217,7 +216,7 @@ pub fn decode_kv_as_row(row: &[u32], mat_elem_bit_len: usize) -> Vec<u8> {
     let mut byte_offset = 0;
 
     while row_offset < row.len() {
-        let remaining_num_bits = num_bits_to_be_extracted - byte_offset * 8 + buf_num_bits;
+        let remaining_num_bits = num_extractable_bits - (byte_offset * 8 + buf_num_bits);
         let selected_bits = row[row_offset] & mat_elem_mask;
 
         buffer |= (selected_bits as u64) << buf_num_bits;
@@ -238,7 +237,22 @@ pub fn decode_kv_as_row(row: &[u32], mat_elem_bit_len: usize) -> Vec<u8> {
         byte_offset += decodable_num_bytes;
     }
 
-    kv
+    let value_boundary = 0x81;
+    match kv.iter().rev().position(|&v| v == value_boundary) {
+        Some(boundary_idx_from_back) => {
+            let boundary_idx_from_front = (kv.len() - 1) - boundary_idx_from_back;
+            let sum_of_values_post_boundary = kv[boundary_idx_from_front..]
+                .iter()
+                .fold(0u8, |acc, &cur| acc.wrapping_add(cur));
+            if sum_of_values_post_boundary == value_boundary && boundary_idx_from_front > 32 {
+                kv.truncate(boundary_idx_from_front);
+                Some(kv)
+            } else {
+                None
+            }
+        }
+        None => None,
+    }
 }
 
 #[inline(always)]
