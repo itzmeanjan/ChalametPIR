@@ -120,7 +120,7 @@ pub fn encode_kv_as_row(
     let mut row = vec![0u32; num_cols];
     let mut row_offset = 0;
 
-    let mat_elem_mask = 1u64 << mat_elem_bit_len;
+    let mat_elem_mask = (1u64 << mat_elem_bit_len) - 1;
 
     let mut buffer = 0u64;
     let mut buf_num_bits = 0usize;
@@ -156,7 +156,7 @@ pub fn encode_kv_as_row(
 
     byte_offset = 0;
     while byte_offset < value.len() {
-        let remaining_num_bytes = hashed_key.len() - byte_offset;
+        let remaining_num_bytes = value.len() - byte_offset;
 
         let unset_num_bits = 64 - buf_num_bits;
         let fillable_num_bits = unset_num_bits & 8usize.wrapping_neg();
@@ -197,7 +197,7 @@ pub fn decode_kv_as_row(row: &[u32], mat_elem_bit_len: usize) -> Vec<u8> {
     let num_bits_to_be_extracted = num_bytes_to_represent_kv * 8;
 
     let mut kv = vec![0u8; num_bytes_to_represent_kv];
-    let mat_elem_mask = 1u32 << mat_elem_bit_len;
+    let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
     let mut buffer = 0u64;
     let mut buf_num_bits = 0;
