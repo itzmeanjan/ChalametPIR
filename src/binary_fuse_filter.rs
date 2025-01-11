@@ -183,8 +183,8 @@ pub fn encode_kv_as_row(
         row_offset += fillable_num_elems;
     }
 
-    let value_boundary = 0x81;
-    buffer |= value_boundary << buf_num_bits;
+    let boundary_mark = 0x81;
+    buffer |= boundary_mark << buf_num_bits;
     buf_num_bits += 8;
 
     while buf_num_bits > 0 {
@@ -237,14 +237,16 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
         byte_offset += decodable_num_bytes;
     }
 
-    let value_boundary = 0x81;
-    match kv.iter().rev().position(|&v| v == value_boundary) {
+    let boundary_mark = 0x81;
+    match kv.iter().rev().position(|&v| v == boundary_mark) {
         Some(boundary_idx_from_back) => {
             let last_idx_of_kv = kv.len() - 1;
             let boundary_idx_from_front = last_idx_of_kv - boundary_idx_from_back;
+
             let is_zeroed_post_boundary = kv[boundary_idx_from_front + 1..]
                 .iter()
                 .fold(true, |acc, &cur| acc & (cur == 0));
+
             if is_zeroed_post_boundary && boundary_idx_from_front > 32 {
                 kv.truncate(boundary_idx_from_front);
                 Some(kv)
