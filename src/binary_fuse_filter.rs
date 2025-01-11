@@ -190,6 +190,46 @@ pub fn encode_kv_as_row(
     row
 }
 
+#[inline]
+pub fn decode_kv_as_row(row: &[u32], mat_elem_bit_len: usize) -> Vec<u8> {
+    let num_extractable_bits_from_row = row.len() * mat_elem_bit_len;
+    let num_bytes_to_represent_kv = num_extractable_bits_from_row / 8;
+    let num_bits_to_be_extracted = num_bytes_to_represent_kv * 8;
+
+    let mut kv = vec![0u8; num_bytes_to_represent_kv];
+    let mat_elem_mask = 1u32 << mat_elem_bit_len;
+
+    let mut buffer = 0u64;
+    let mut buf_num_bits = 0;
+
+    let mut row_offset = 0;
+    let mut byte_offset = 0;
+
+    while row_offset < row.len() {
+        let remaining_num_bits = num_bits_to_be_extracted - byte_offset * 8 + buf_num_bits;
+        let selected_bits = row[row_offset] & mat_elem_mask;
+
+        buffer |= (selected_bits as u64) << buf_num_bits;
+        buf_num_bits += min(mat_elem_bit_len, remaining_num_bits);
+
+        let decodable_num_bits = buf_num_bits & 8usize.wrapping_neg();
+        let decodable_num_bytes = decodable_num_bits / 8;
+
+        u64_to_le_bytes(
+            buffer,
+            &mut kv[byte_offset..(byte_offset + decodable_num_bytes)],
+        );
+
+        buffer >>= decodable_num_bits;
+        buf_num_bits -= decodable_num_bits;
+
+        row_offset += 1;
+        byte_offset += decodable_num_bytes;
+    }
+
+    kv
+}
+
 #[inline(always)]
 pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     let mut word = 0;
@@ -200,4 +240,13 @@ pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     }
 
     word
+}
+
+#[inline(always)]
+pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
+    let writable_num_bytes = min(bytes.len(), std::mem::size_of::<u64>());
+
+    for i in 0..writable_num_bytes {
+        bytes[i] = (word >> i * 8) as u8;
+    }
 }
