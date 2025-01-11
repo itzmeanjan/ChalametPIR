@@ -278,3 +278,69 @@ pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
         bytes[i] = (word >> i * 8) as u8;
     }
 }
+
+mod test {
+    use crate::binary_fuse_filter::{decode_kv_from_row, encode_kv_as_row};
+    use rand::prelude::*;
+    use rand_chacha::ChaCha8Rng;
+    use sha3::{Digest, Sha3_256};
+
+    #[test]
+    fn encode_kv_as_row_and_recover() {
+        const MIN_KEY_BYTE_LEN: usize = 1;
+        const MAX_KEY_BYTE_LEN: usize = 256;
+
+        const MIN_VALUE_BYTE_LEN: usize = 1;
+        const MAX_VALUE_BYTE_LEN: usize = 256;
+
+        const MIN_MAT_ELEM_BIT_LEN: usize = 1;
+        const MAX_MAT_ELEM_BIT_LEN: usize = 10;
+
+        let mut rng = ChaCha8Rng::from_entropy();
+
+        for key_byte_len in MIN_KEY_BYTE_LEN..MAX_KEY_BYTE_LEN {
+            for value_byte_len in MIN_VALUE_BYTE_LEN..MAX_VALUE_BYTE_LEN {
+                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..MAX_MAT_ELEM_BIT_LEN {
+                    let mut key = vec![0u8; key_byte_len];
+                    let mut value = vec![0u8; value_byte_len];
+
+                    rng.fill_bytes(&mut key);
+                    rng.fill_bytes(&mut value);
+
+                    let hashed_key = {
+                        let mut hasher = Sha3_256::new();
+                        hasher.update(&key);
+
+                        let mut hashed_key = [0u8; 32];
+                        hasher.finalize_into((&mut hashed_key).into());
+                        hashed_key
+                    };
+
+                    let encoded_kv_len =
+                        (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
+
+                    let row = encode_kv_as_row(&key, &value, mat_elem_bit_len, encoded_kv_len);
+                    let decoded_kv = decode_kv_from_row(&row, mat_elem_bit_len)
+                        .expect("Must be able to decode successfully !");
+
+                    assert_eq!(
+                        hashed_key,
+                        decoded_kv[..hashed_key.len()],
+                        "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
+                        key_byte_len,
+                        value_byte_len,
+                        mat_elem_bit_len
+                    );
+                    assert_eq!(
+                        value,
+                        decoded_kv[hashed_key.len()..],
+                        "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
+                        key_byte_len,
+                        value_byte_len,
+                        mat_elem_bit_len
+                    );
+                }
+            }
+        }
+    }
+}
