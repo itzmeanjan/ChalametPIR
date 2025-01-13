@@ -189,9 +189,9 @@ mod test {
 
         let mut rng = ChaCha8Rng::from_entropy();
 
-        for key_byte_len in MIN_KEY_BYTE_LEN..MAX_KEY_BYTE_LEN {
-            for value_byte_len in MIN_VALUE_BYTE_LEN..MAX_VALUE_BYTE_LEN {
-                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..MAX_MAT_ELEM_BIT_LEN {
+        for key_byte_len in MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN {
+            for value_byte_len in MIN_VALUE_BYTE_LEN..=MAX_VALUE_BYTE_LEN {
+                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
                     let mut key = vec![0u8; key_byte_len];
                     let mut value = vec![0u8; value_byte_len];
 

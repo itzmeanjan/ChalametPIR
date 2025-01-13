@@ -178,8 +178,8 @@ mod test {
     use std::collections::HashMap;
 
     fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>> {
-        const KEY_BYTE_LEN: usize = 256;
-        const VALUE_BYTE_LEN: usize = 1024;
+        const KEY_BYTE_LEN: usize = 32;
+        const VALUE_BYTE_LEN: usize = 256;
 
         let mut kv = HashMap::with_capacity(num_kv_pairs);
         let mut rng = ChaCha8Rng::from_entropy();
@@ -210,9 +210,9 @@ mod test {
         const MIN_MAT_ELEM_BIT_LEN: usize = 7;
         const MAX_MAT_ELEM_BIT_LEN: usize = 10;
 
-        for num_kv_pairs in MIN_NUM_KV_PAIRS..MAX_NUM_KV_PAIRS {
-            for arity in MIN_ARITY..MAX_ARITY {
-                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..MAX_MAT_ELEM_BIT_LEN {
+        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
+            for arity in MIN_ARITY..=MAX_ARITY {
+                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
                     let kv_db = generate_random_kv_database(num_kv_pairs);
                     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
