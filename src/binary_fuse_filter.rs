@@ -9,12 +9,14 @@ pub struct BinaryFuseFilter {
     pub segment_count_length: u32,
     pub num_fingerprints: usize,
     pub filter_size: usize,
+    pub mat_elem_bit_len: usize,
 }
 
 impl BinaryFuseFilter {
     pub fn construct_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         arity: u32,
+        mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
         let filter_size = db.len();
@@ -206,6 +208,7 @@ impl BinaryFuseFilter {
                 segment_count_length,
                 num_fingerprints,
                 filter_size: ultimate_size,
+                mat_elem_bit_len,
             },
             reverse_order,
             reverse_h,
