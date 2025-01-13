@@ -317,29 +317,33 @@ mod test {
                         hashed_key
                     };
 
-                    let encoded_kv_len =
+                    let actual_encoded_kv_len =
                         (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
+                    let max_encoded_kv_len = (hashed_key.len() * 8 + (2 * value.len() + 1) * 8)
+                        .div_ceil(mat_elem_bit_len);
 
-                    let row = encode_kv_as_row(&key, &value, mat_elem_bit_len, encoded_kv_len);
-                    let decoded_kv = decode_kv_from_row(&row, mat_elem_bit_len)
-                        .expect("Must be able to decode successfully !");
+                    for encoded_kv_len in actual_encoded_kv_len..max_encoded_kv_len {
+                        let row = encode_kv_as_row(&key, &value, mat_elem_bit_len, encoded_kv_len);
+                        let decoded_kv = decode_kv_from_row(&row, mat_elem_bit_len)
+                            .expect("Must be able to decode successfully !");
 
-                    assert_eq!(
-                        hashed_key,
-                        decoded_kv[..hashed_key.len()],
-                        "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
-                        key_byte_len,
-                        value_byte_len,
-                        mat_elem_bit_len
-                    );
-                    assert_eq!(
-                        value,
-                        decoded_kv[hashed_key.len()..],
-                        "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
-                        key_byte_len,
-                        value_byte_len,
-                        mat_elem_bit_len
-                    );
+                        assert_eq!(
+                            hashed_key,
+                            decoded_kv[..hashed_key.len()],
+                            "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
+                            key_byte_len,
+                            value_byte_len,
+                            mat_elem_bit_len
+                        );
+                        assert_eq!(
+                            value,
+                            decoded_kv[hashed_key.len()..],
+                            "key_len = {}, value_len = {}, mat_elem_bit_len = {}",
+                            key_byte_len,
+                            value_byte_len,
+                            mat_elem_bit_len
+                        );
+                    }
                 }
             }
         }
