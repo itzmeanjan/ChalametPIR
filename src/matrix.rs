@@ -75,7 +75,6 @@ impl Matrix {
         match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, mat_elem_bit_len, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
-                const HASHED_KEY_BYTE_LEN: usize = HASHED_KEY_BIT_LEN / 8;
 
                 let max_value_byte_len = db.values().map(|v| v.len()).max()?;
                 let max_value_bit_len = max_value_byte_len * 8;
@@ -122,7 +121,11 @@ impl Matrix {
                             elem.wrapping_sub(mask) & mat_elem_mask
                         })
                         .collect::<Vec<u32>>();
-                    mat.elems[mat_row_idx0 * cols..].copy_from_slice(&elems);
+
+                    let fingerprints_begin_at = mat_row_idx0 * cols;
+                    let fingerprints_end_at = fingerprints_begin_at + cols;
+
+                    mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
                 }
 
                 Some((mat, filter))
