@@ -273,9 +273,9 @@ impl BinaryFuseFilter {
 
         key.into_iter()
             .map(|&k| {
-                seed_words.into_iter().fold(0u64, |acc, seed_word| {
-                    Self::murmur64(acc.overflowing_add(Self::mix(k, seed_word)).0)
-                })
+                seed_words
+                    .into_iter()
+                    .fold(0u64, |acc, seed_word| Self::murmur64(acc.overflowing_add(Self::mix(k, seed_word)).0))
             })
             .fold(0, |acc, r| acc.overflowing_add(r).0)
     }
@@ -295,11 +295,7 @@ impl BinaryFuseFilter {
     }
 
     #[inline]
-    pub const fn hash_batch(
-        hash: u64,
-        segment_length: u32,
-        segment_count_length: u32,
-    ) -> (u32, u32, u32) {
+    pub const fn hash_batch(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32) {
         let segment_length_mask = segment_length - 1;
         let hi = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
 
@@ -315,12 +311,7 @@ impl BinaryFuseFilter {
 }
 
 #[inline]
-pub fn encode_kv_as_row(
-    key: &[u8],
-    value: &[u8],
-    mat_elem_bit_len: usize,
-    num_cols: usize,
-) -> Vec<u32> {
+pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_cols: usize) -> Vec<u32> {
     let hashed_key = {
         let mut hasher = Sha3_256::new();
         hasher.update(key);
@@ -438,10 +429,7 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
         let decodable_num_bits = buf_num_bits & 8usize.wrapping_neg();
         let decodable_num_bytes = decodable_num_bits / 8;
 
-        u64_to_le_bytes(
-            buffer,
-            &mut kv[byte_offset..(byte_offset + decodable_num_bytes)],
-        );
+        u64_to_le_bytes(buffer, &mut kv[byte_offset..(byte_offset + decodable_num_bytes)]);
 
         buffer >>= decodable_num_bits;
         buf_num_bits -= decodable_num_bits;
@@ -456,9 +444,7 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
             let last_idx_of_kv = kv.len() - 1;
             let boundary_idx_from_front = last_idx_of_kv - boundary_idx_from_back;
 
-            let is_zeroed_post_boundary = kv[boundary_idx_from_front + 1..]
-                .iter()
-                .fold(true, |acc, &cur| acc & (cur == 0));
+            let is_zeroed_post_boundary = kv[boundary_idx_from_front + 1..].iter().fold(true, |acc, &cur| acc & (cur == 0));
 
             if is_zeroed_post_boundary && boundary_idx_from_front > 32 {
                 kv.truncate(boundary_idx_from_front);
@@ -530,15 +516,12 @@ mod test {
                         hashed_key
                     };
 
-                    let actual_encoded_kv_len =
-                        (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
-                    let max_encoded_kv_len = (hashed_key.len() * 8 + (2 * value.len() + 1) * 8)
-                        .div_ceil(mat_elem_bit_len);
+                    let actual_encoded_kv_len = (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
+                    let max_encoded_kv_len = (hashed_key.len() * 8 + (2 * value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
 
                     for encoded_kv_len in actual_encoded_kv_len..max_encoded_kv_len {
                         let row = encode_kv_as_row(&key, &value, mat_elem_bit_len, encoded_kv_len);
-                        let decoded_kv = decode_kv_from_row(&row, mat_elem_bit_len)
-                            .expect("Must be able to decode successfully !");
+                        let decoded_kv = decode_kv_from_row(&row, mat_elem_bit_len).expect("Must be able to decode successfully !");
 
                         assert_eq!(
                             hashed_key,

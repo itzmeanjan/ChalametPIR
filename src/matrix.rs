@@ -51,8 +51,7 @@ impl Matrix {
 
             let mut local_idx = cur_elem_idx;
             while local_idx < (cur_elem_idx + to_be_filled_num_elems) {
-                mat.elems[local_idx] =
-                    u32::from_le_bytes(buffer[buf_offset..(buf_offset + 4)].try_into().unwrap());
+                mat.elems[local_idx] = u32::from_le_bytes(buffer[buf_offset..(buf_offset + 4)].try_into().unwrap());
 
                 local_idx += 1;
                 buf_offset += std::mem::size_of::<u32>();
@@ -70,8 +69,7 @@ impl Matrix {
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
-        match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, max_attempt_count)
-        {
+        match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
                 const HASHED_KEY_BYTE_LEN: usize = HASHED_KEY_BIT_LEN / 8;
@@ -80,8 +78,7 @@ impl Matrix {
                 let max_value_bit_len = max_value_byte_len * 8;
 
                 let rows = filter.num_fingerprints;
-                let cols: usize =
-                    (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len);
+                let cols: usize = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len);
 
                 let mut mat = Matrix::new(rows, cols)?;
                 let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
@@ -93,11 +90,7 @@ impl Matrix {
                     let key = *hash_to_key.get(&hash)?;
                     let value = *db.get(key)?;
 
-                    let (h0, h1, h2) = BinaryFuseFilter::hash_batch(
-                        hash,
-                        filter.segment_length,
-                        filter.segment_count_length,
-                    );
+                    let (h0, h1, h2) = BinaryFuseFilter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
 
                     let found = reverse_h[i] as usize;
                     h012[0] = h0;
@@ -106,8 +99,7 @@ impl Matrix {
                     h012[3] = h012[0];
                     h012[4] = h012[1];
 
-                    let row =
-                        binary_fuse_filter::encode_kv_as_row(key, value, mat_elem_bit_len, cols);
+                    let row = binary_fuse_filter::encode_kv_as_row(key, value, mat_elem_bit_len, cols);
 
                     let mat_row_idx0 = h012[found + 0] as usize;
                     let mat_row_idx1 = h012[found + 1] as usize;
@@ -123,8 +115,7 @@ impl Matrix {
                             (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
                         })
                         .map(|(elem_idx, elem)| {
-                            let mask = (BinaryFuseFilter::mix(hash, elem_idx as u64) as u32)
-                                & mat_elem_mask;
+                            let mask = (BinaryFuseFilter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask;
                             elem.wrapping_sub(mask) & mat_elem_mask
                         })
                         .collect::<Vec<u32>>();
