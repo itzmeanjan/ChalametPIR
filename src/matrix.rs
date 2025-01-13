@@ -1,4 +1,7 @@
-use crate::{binary_fuse_filter, serialization};
+use crate::{
+    binary_fuse_filter::{self, BinaryFuseFilter},
+    serialization,
+};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake128,
@@ -69,7 +72,7 @@ impl Matrix {
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
-        match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, max_attempt_count) {
+        match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, mat_elem_bit_len, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
                 const HASHED_KEY_BYTE_LEN: usize = HASHED_KEY_BIT_LEN / 8;
@@ -123,6 +126,41 @@ impl Matrix {
                 }
 
                 Some((mat, filter))
+            }
+            None => None,
+        }
+    }
+
+    pub fn recover_value_from_encoded_kv_database(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+        let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
+
+        let hashed_key = binary_fuse_filter::hash_of_key(key);
+        let hash = binary_fuse_filter::mix256(&hashed_key, &filter.seed);
+
+        let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
+
+        let recovered_row = (0..self.cols)
+            .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols + elem_idx]))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h1 as usize * self.cols + elem_idx])))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h2 as usize * self.cols + elem_idx])))
+            .map(|(elem_idx, elem)| elem.wrapping_add((binary_fuse_filter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask) & mat_elem_mask)
+            .collect::<Vec<u32>>();
+
+        match serialization::decode_kv_from_row(&recovered_row, filter.mat_elem_bit_len) {
+            Some(mut decoded_kv) => {
+                let mut hashed_key_as_bytes = [0u8; 32];
+
+                hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
+                hashed_key_as_bytes[8..16].copy_from_slice(&hashed_key[1].to_le_bytes());
+                hashed_key_as_bytes[16..24].copy_from_slice(&hashed_key[2].to_le_bytes());
+                hashed_key_as_bytes[24..].copy_from_slice(&hashed_key[3].to_le_bytes());
+
+                if (0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0 {
+                    decoded_kv.drain(..hashed_key_as_bytes.len());
+                    Some(decoded_kv)
+                } else {
+                    None
+                }
             }
             None => None,
         }
