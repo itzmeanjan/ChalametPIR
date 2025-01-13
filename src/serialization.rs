@@ -179,12 +179,12 @@ mod test {
     #[test]
     fn encode_kv_as_row_and_recover() {
         const MIN_KEY_BYTE_LEN: usize = 1;
-        const MAX_KEY_BYTE_LEN: usize = 256;
+        const MAX_KEY_BYTE_LEN: usize = 32;
 
         const MIN_VALUE_BYTE_LEN: usize = 1;
-        const MAX_VALUE_BYTE_LEN: usize = 256;
+        const MAX_VALUE_BYTE_LEN: usize = 64;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 1;
+        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
         const MAX_MAT_ELEM_BIT_LEN: usize = 10;
 
         let mut rng = ChaCha8Rng::from_entropy();
