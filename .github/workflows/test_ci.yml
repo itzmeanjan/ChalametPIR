@@ -1,0 +1,24 @@
+# Taken from https://github.com/itzmeanjan/ascon/blob/644e5c0ee64da42e3c187adb84ba4c43925caf30/.github/workflows/test_ci.yml
+name: Test ChalametPIR - Private Information Retrieval for Key-Value Maps
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ${{matrix.os}}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and Test on ${{ matrix.os }}
+        run: cargo test --lib --release
