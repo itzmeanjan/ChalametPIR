@@ -90,7 +90,7 @@ impl Matrix {
                     let key = *hash_to_key.get(&hash)?;
                     let value = *db.get(key)?;
 
-                    let (h0, h1, h2) = binary_fuse_filter::BinaryFuseFilter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
+                    let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
 
                     let found = reverse_h[i] as usize;
                     h012[0] = h0;
@@ -115,7 +115,7 @@ impl Matrix {
                             (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
                         })
                         .map(|(elem_idx, elem)| {
-                            let mask = (binary_fuse_filter::BinaryFuseFilter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask;
+                            let mask = (binary_fuse_filter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask;
                             elem.wrapping_sub(mask) & mat_elem_mask
                         })
                         .collect::<Vec<u32>>();
