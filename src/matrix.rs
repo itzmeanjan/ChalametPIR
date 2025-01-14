@@ -245,9 +245,9 @@ impl Matrix {
                 let actual_num_elems = v.get_num_elems();
 
                 if expected_num_elems == actual_num_elems {
-                    Err("Number of rows/ cols and number of elements do not match !".to_string())
-                } else {
                     Ok(v)
+                } else {
+                    Err("Number of rows/ cols and number of elements do not match !".to_string())
                 }
             },
         )
