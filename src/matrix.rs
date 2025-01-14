@@ -2,6 +2,8 @@ use crate::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     serialization,
 };
+use rand::prelude::*;
+use rand_chacha::ChaCha8Rng;
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake128,
@@ -79,6 +81,42 @@ impl Matrix {
         }
 
         Some(mat)
+    }
+
+    pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Option<Matrix> {
+        if !(rows == 1 || cols == 1) {
+            return None;
+        }
+
+        const TERNARY_INTERVAL_SIZE: u32 = (u32::MAX - 2) / 3;
+        const TERNARY_REJECTION_SAMPLING_MAX: u32 = TERNARY_INTERVAL_SIZE * 3;
+
+        let mut rng = ChaCha8Rng::from_entropy();
+        let mut vec = Matrix::new(rows, cols)?;
+
+        let num_elems = rows * cols;
+        let mut elem_idx = 0;
+
+        while elem_idx < num_elems {
+            let mut val = u32::MAX;
+
+            while val > TERNARY_REJECTION_SAMPLING_MAX {
+                val = rng.gen::<u32>();
+            }
+
+            let ternary = if val <= TERNARY_INTERVAL_SIZE {
+                0
+            } else if val > TERNARY_INTERVAL_SIZE && val <= 2 * TERNARY_INTERVAL_SIZE {
+                1
+            } else {
+                u32::MAX
+            };
+
+            vec.elems[elem_idx] = ternary;
+            elem_idx += 1;
+        }
+
+        Some(vec)
     }
 
     pub fn from_kv_database(
