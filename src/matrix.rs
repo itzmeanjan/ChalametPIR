@@ -4,6 +4,7 @@ use crate::{
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake128,
@@ -14,7 +15,7 @@ use std::{
     ops::{Index, IndexMut, Mul},
 };
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
@@ -32,6 +33,16 @@ impl Matrix {
                 elems: vec![0; rows * cols],
             })
         }
+    }
+
+    pub const fn get_num_rows(&self) -> usize {
+        self.rows
+    }
+    pub const fn get_num_cols(&self) -> usize {
+        self.cols
+    }
+    pub fn get_num_elems(&self) -> usize {
+        self.elems.len()
     }
 
     pub fn identity(rows: usize) -> Option<Matrix> {
@@ -220,6 +231,26 @@ impl Matrix {
             }
             None => None,
         }
+    }
+
+    pub fn to_bytes(self) -> Result<Vec<u8>, String> {
+        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, String> {
+        bincode::deserialize(bytes).map_or_else(
+            |e| Err(format!("Failed to deserialize: {}", e)),
+            |v: Matrix| {
+                let expected_num_elems = v.get_num_rows() * v.get_num_cols();
+                let actual_num_elems = v.get_num_elems();
+
+                if expected_num_elems == actual_num_elems {
+                    Err("Number of rows/ cols and number of elements do not match !".to_string())
+                } else {
+                    Ok(v)
+                }
+            },
+        )
     }
 }
 
