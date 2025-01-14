@@ -253,12 +253,11 @@ pub const fn mod3(x: u8) -> u8 {
 #[inline(always)]
 pub const fn murmur64(mut h: u64) -> u64 {
     h ^= h >> 33;
-    h *= 0xff51_afd7_ed55_8ccd;
+    h = h.overflowing_mul(0xff51_afd7_ed55_8ccd).0;
     h ^= h >> 33;
-    h *= 0xc4ce_b9fe_1a85_ec53;
+    h = h.overflowing_mul(0xc4ce_b9fe_1a85_ec53).0;
     h ^= h >> 33;
-
-    return h;
+    h
 }
 
 #[inline(always)]
