@@ -233,7 +233,7 @@ impl Matrix {
         }
     }
 
-    pub fn to_bytes(self) -> Result<Vec<u8>, String> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
         bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
     }
 
