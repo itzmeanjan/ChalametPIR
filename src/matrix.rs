@@ -12,6 +12,7 @@ use std::{
     ops::{Index, IndexMut, Mul},
 };
 
+#[derive(Clone, Debug)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
@@ -299,5 +300,26 @@ mod test {
                 }
             }
         }
+    }
+
+    #[test]
+    fn matrix_multiplication_is_correct() {
+        const NUM_ROWS_IN_MATRIX: usize = 1024;
+        const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
+
+        let mut rng = ChaCha8Rng::from_entropy();
+
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+
+        let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
+        let matrix_b = Matrix::identity(NUM_COLS_IN_MATRIX).expect("Identity must be created");
+        let matrix_c = Matrix::identity(NUM_ROWS_IN_MATRIX).expect("Identity must be created");
+
+        let matrix_ab = (matrix_a.clone() * matrix_b).expect("Matrix multiplication must pass");
+        assert_eq!(matrix_a, matrix_ab);
+
+        let matrix_ca = (matrix_c * matrix_a.clone()).expect("Matrix multiplication must pass");
+        assert_eq!(matrix_a, matrix_ca);
     }
 }
