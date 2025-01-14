@@ -31,6 +31,16 @@ impl Matrix {
         }
     }
 
+    pub fn identity(rows: usize) -> Option<Matrix> {
+        let mut mat = Matrix::new(rows, rows)?;
+
+        (0..rows).for_each(|idx| {
+            mat[(idx, idx)] = 1;
+        });
+
+        Some(mat)
+    }
+
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; 32]) -> Option<Matrix> {
         let mut hasher = Shake128::default();
         hasher.update(seed);
