@@ -12,7 +12,7 @@ use sha3::{
 use std::{
     cmp::min,
     collections::HashMap,
-    ops::{Index, IndexMut, Mul},
+    ops::{Add, Index, IndexMut, Mul},
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -287,6 +287,27 @@ impl Mul for Matrix {
                 });
             });
         });
+
+        Some(res)
+    }
+}
+
+impl Add for Matrix {
+    type Output = Option<Matrix>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        if !(self.rows == rhs.rows && self.cols == rhs.cols) {
+            return None;
+        }
+
+        let mut res = Matrix::new(self.rows, self.cols)?;
+
+        (0..self.rows)
+            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
+            .flatten()
+            .for_each(|idx| {
+                res[idx] = self[idx].wrapping_add(rhs[idx]);
+            });
 
         Some(res)
     }
