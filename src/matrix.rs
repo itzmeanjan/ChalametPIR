@@ -6,7 +6,11 @@ use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
     Shake128,
 };
-use std::{cmp::min, collections::HashMap};
+use std::{
+    cmp::min,
+    collections::HashMap,
+    ops::{Index, IndexMut},
+};
 
 pub struct Matrix {
     rows: usize,
@@ -167,6 +171,22 @@ impl Matrix {
             }
             None => None,
         }
+    }
+}
+
+impl Index<(usize, usize)> for Matrix {
+    type Output = u32;
+
+    fn index(&self, index: (usize, usize)) -> &Self::Output {
+        let (ridx, cidx) = index;
+        &self.elems[ridx * self.cols + cidx]
+    }
+}
+
+impl IndexMut<(usize, usize)> for Matrix {
+    fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
+        let (ridx, cidx) = index;
+        &mut self.elems[ridx * self.cols + cidx]
     }
 }
 
