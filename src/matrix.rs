@@ -14,7 +14,7 @@ use std::{
     ops::{Index, IndexMut, Mul},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
@@ -258,19 +258,6 @@ impl Mul for Matrix {
         });
 
         Some(res)
-    }
-}
-
-impl PartialEq for Matrix {
-    fn eq(&self, other: &Self) -> bool {
-        if !(self.rows == other.rows && self.cols == other.cols) {
-            return false;
-        }
-
-        (0..self.rows)
-            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
-            .flatten()
-            .fold(true, |acc, (ridx, cidx)| acc & (self[(ridx, cidx)] == other[(ridx, cidx)]))
     }
 }
 
