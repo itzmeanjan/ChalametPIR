@@ -4,7 +4,7 @@ use std::collections::HashMap;
 pub const λ: usize = 128;
 pub const LWE_DIMENSION: usize = 1774;
 pub const SEED_BYTE_LEN: usize = (2 * λ) / 8;
-pub const MAX_SERVER_SETUP_ATTEMPT_COUNT: usize = 100;
+pub const SERVER_SETUP_MAX_ATTEMPT_COUNT: usize = 100;
 
 pub struct Server {
     arity: u32,
@@ -21,11 +21,12 @@ impl Server {
             return None;
         }
 
+        let (parsed_db_mat_d, filter) = Matrix::from_kv_database(db, arity, mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)?;
+
         let pub_mat_a_num_rows = LWE_DIMENSION;
-        let pub_mat_a_num_cols = db_num_kv_pairs;
+        let pub_mat_a_num_cols = filter.num_fingerprints;
 
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
-        let (parsed_db_mat_d, filter) = Matrix::from_kv_database(db, arity, mat_elem_bit_len, MAX_SERVER_SETUP_ATTEMPT_COUNT)?;
 
         let hint_mat_m = (pub_mat_a * parsed_db_mat_d.clone())?;
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
