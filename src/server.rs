@@ -42,4 +42,14 @@ impl Server {
             hint_bytes,
         ))
     }
+
+    pub fn respond(self, query: &[u8]) -> Option<Vec<u8>> {
+        let query_vector = Matrix::from_bytes(query).ok()?;
+        if !(query_vector.get_num_rows() == 1 && query_vector.get_num_cols() == self.parsed_db_mat_d.get_num_rows()) {
+            return None;
+        }
+
+        let response_vector = (query_vector * self.parsed_db_mat_d)?;
+        response_vector.to_bytes().ok()
+    }
 }
