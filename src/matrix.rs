@@ -304,6 +304,14 @@ impl Add for Matrix {
     type Output = Option<Matrix>;
 
     fn add(self, rhs: Self) -> Self::Output {
+        &self + &rhs
+    }
+}
+
+impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
+    type Output = Option<Matrix>;
+
+    fn add(self, rhs: &'b Matrix) -> Self::Output {
         if !(self.rows == rhs.rows && self.cols == rhs.cols) {
             return None;
         }
