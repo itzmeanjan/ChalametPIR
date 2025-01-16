@@ -274,21 +274,7 @@ impl Mul for Matrix {
     type Output = Option<Matrix>;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        if self.cols != rhs.rows {
-            return None;
-        }
-
-        let mut res = Matrix::new(self.rows, rhs.cols)?;
-
-        (0..self.rows).for_each(|ridx| {
-            (0..self.cols).for_each(|k| {
-                (0..rhs.cols).for_each(|cidx| {
-                    res[(ridx, cidx)] = res[(ridx, cidx)].wrapping_add(self[(ridx, k)].wrapping_mul(rhs[(k, cidx)]));
-                });
-            });
-        });
-
-        Some(res)
+        &self * &rhs
     }
 }
 
