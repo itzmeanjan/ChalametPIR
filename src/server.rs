@@ -28,7 +28,7 @@ impl Server {
 
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
 
-        let hint_mat_m = (pub_mat_a * parsed_db_mat_d.clone())?;
+        let hint_mat_m = (&pub_mat_a * &parsed_db_mat_d)?;
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
 
         Some((
@@ -49,7 +49,7 @@ impl Server {
             return None;
         }
 
-        let response_vector = (query_vector * self.parsed_db_mat_d)?;
+        let response_vector = (&query_vector * &self.parsed_db_mat_d)?;
         response_vector.to_bytes().ok()
     }
 }
