@@ -1,10 +1,9 @@
-use crate::{binary_fuse_filter::BinaryFuseFilter, matrix::Matrix};
+use crate::{
+    binary_fuse_filter::BinaryFuseFilter,
+    matrix::Matrix,
+    params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
+};
 use std::collections::HashMap;
-
-pub const λ: usize = 128;
-pub const LWE_DIMENSION: usize = 1774;
-pub const SEED_BYTE_LEN: usize = (2 * λ) / 8;
-pub const SERVER_SETUP_MAX_ATTEMPT_COUNT: usize = 100;
 
 pub struct Server {
     arity: u32,
