@@ -1,4 +1,5 @@
 use crate::{
+    binary_fuse_filter::BinaryFuseFilter,
     matrix::Matrix,
     params::{LWE_DIMENSION, SEED_BYTE_LEN},
 };
@@ -18,12 +19,17 @@ pub struct Query {
 pub struct Client<'a> {
     pub_mat_a: Matrix,
     hint_mat_m: Matrix,
+    filter: BinaryFuseFilter,
     pending_queries: HashMap<&'a [u8], Query>,
 }
 
 impl<'a> Client<'a> {
-    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], pub_mat_a_num_cols: usize, hint_bytes: &[u8]) -> Option<Client<'a>> {
+    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Option<Client<'a>> {
+        let filter = BinaryFuseFilter::from_bytes(filter_param_bytes).ok()?;
+
         let pub_mat_a_num_rows = LWE_DIMENSION;
+        let pub_mat_a_num_cols = filter.num_fingerprints;
+
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
 
         let hint_mat_m = Matrix::from_bytes(hint_bytes).ok()?;
@@ -31,6 +37,7 @@ impl<'a> Client<'a> {
         Some(Client {
             pub_mat_a,
             hint_mat_m,
+            filter,
             pending_queries: HashMap::new(),
         })
     }
