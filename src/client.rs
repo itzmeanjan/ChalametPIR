@@ -34,4 +34,30 @@ impl<'a> Client<'a> {
             pending_queries: HashMap::new(),
         })
     }
+
+    pub fn prepare_query(&mut self, key: &'a [u8]) -> Option<()> {
+        if self.pending_queries.contains_key(key) {
+            return None;
+        }
+
+        let secret_vec_num_cols = LWE_DIMENSION;
+        let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
+
+        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
+
+        let vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
+        let vec_c = (&secret_vec_s * &self.hint_mat_m)?;
+
+        self.pending_queries.insert(
+            key,
+            Query {
+                status: QueryStatus::Prepared,
+                vec_b,
+                vec_c,
+            },
+        );
+
+        Some(())
+    }
 }
