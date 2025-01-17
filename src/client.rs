@@ -1,17 +1,11 @@
 use crate::{
-    binary_fuse_filter::BinaryFuseFilter,
+    binary_fuse_filter::{self, BinaryFuseFilter},
     matrix::Matrix,
     params::{LWE_DIMENSION, SEED_BYTE_LEN},
 };
 use std::collections::HashMap;
 
-pub enum QueryStatus {
-    Prepared,
-    Sent,
-}
-
 pub struct Query {
-    status: QueryStatus,
     vec_b: Matrix,
     vec_c: Matrix,
 }
@@ -42,7 +36,7 @@ impl<'a> Client<'a> {
         })
     }
 
-    pub fn prepare_query(&mut self, key: &'a [u8]) -> Option<()> {
+    pub fn query(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
         if self.pending_queries.contains_key(key) {
             return None;
         }
@@ -53,18 +47,49 @@ impl<'a> Client<'a> {
         let error_vector_num_cols = self.pub_mat_a.get_num_cols();
         let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
 
-        let vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
-        let vec_c = (&secret_vec_s * &self.hint_mat_m)?;
+        let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
+        let secret_vec_c = (&secret_vec_s * &self.hint_mat_m)?;
 
+        let hashed_key = binary_fuse_filter::hash_of_key(key);
+        let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
+        let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, self.filter.segment_length, self.filter.segment_count_length);
+
+        let query_indicator = self.calculate_query_indicator();
+
+        let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h0 as usize)] = added_val;
+
+        let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h1 as usize)] = added_val;
+
+        let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h2 as usize)] = added_val;
+
+        let query_bytes = query_vec_b.to_bytes().ok()?;
         self.pending_queries.insert(
             key,
             Query {
-                status: QueryStatus::Prepared,
-                vec_b,
-                vec_c,
+                vec_b: query_vec_b,
+                vec_c: secret_vec_c,
             },
         );
 
-        Some(())
+        Some(query_bytes)
+    }
+
+    pub const fn calculate_query_indicator(&self) -> u32 {
+        const MODULUS: u64 = u32::MAX as u64 + 1;
+        let plaintext_modulo = 1u64 << self.filter.mat_elem_bit_len;
+
+        (MODULUS / plaintext_modulo) as u32
     }
 }
