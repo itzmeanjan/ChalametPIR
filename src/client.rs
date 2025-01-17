@@ -2,6 +2,7 @@ use crate::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     matrix::Matrix,
     params::{LWE_DIMENSION, SEED_BYTE_LEN},
+    serialization,
 };
 use std::collections::HashMap;
 
@@ -84,6 +85,64 @@ impl<'a> Client<'a> {
         );
 
         Some(query_bytes)
+    }
+
+    pub fn process_response(&mut self, key: &'a [u8], response_bytes: &[u8]) -> Option<Vec<u8>> {
+        match self.pending_queries.get(key) {
+            Some(query) => {
+                let secret_vec_c = &query.vec_c;
+
+                let response_vector = Matrix::from_bytes(response_bytes).ok()?;
+                if response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols() {
+                    return None;
+                }
+
+                let rounding_factor = self.calculate_query_indicator();
+                let rounding_floor = rounding_factor / 2;
+                let plaintext_modulo = 1u32 << self.filter.mat_elem_bit_len;
+
+                let recovered_row = (0..response_vector.get_num_cols())
+                    .map(|idx| {
+                        let unscaled_res = response_vector[(0, idx)].wrapping_sub(secret_vec_c[(0, idx)]);
+
+                        let scaled_res = unscaled_res / rounding_factor;
+                        let scaled_rem = unscaled_res % rounding_factor;
+
+                        let mut rounded_res = scaled_res;
+                        if scaled_rem > rounding_floor {
+                            rounded_res += 1;
+                        }
+
+                        rounded_res % plaintext_modulo
+                    })
+                    .collect::<Vec<u32>>();
+
+                let hashed_key = binary_fuse_filter::hash_of_key(key);
+
+                let value = match serialization::decode_kv_from_row(&recovered_row, self.filter.mat_elem_bit_len) {
+                    Some(mut decoded_kv) => {
+                        let mut hashed_key_as_bytes = [0u8; 32];
+
+                        hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
+                        hashed_key_as_bytes[8..16].copy_from_slice(&hashed_key[1].to_le_bytes());
+                        hashed_key_as_bytes[16..24].copy_from_slice(&hashed_key[2].to_le_bytes());
+                        hashed_key_as_bytes[24..].copy_from_slice(&hashed_key[3].to_le_bytes());
+
+                        if (0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0 {
+                            decoded_kv.drain(..hashed_key_as_bytes.len());
+                            Some(decoded_kv)
+                        } else {
+                            None
+                        }
+                    }
+                    None => None,
+                };
+
+                self.pending_queries.remove(key);
+                value
+            }
+            None => None,
+        }
     }
 
     pub const fn calculate_query_indicator(&self) -> u32 {
