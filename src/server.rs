@@ -6,15 +6,13 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct Server {
-    arity: u32,
-    mat_elem_bit_len: usize,
     db_num_kv_pairs: usize,
     parsed_db_mat_d: Matrix,
     filter: BinaryFuseFilter,
 }
 
 impl Server {
-    pub fn setup(arity: u32, mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>)> {
+    pub fn setup(arity: u32, mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
         let db_num_kv_pairs = db.len();
         if !db_num_kv_pairs.is_power_of_two() {
             return None;
@@ -29,16 +27,16 @@ impl Server {
 
         let hint_mat_m = (&pub_mat_a * &parsed_db_mat_d)?;
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
+        let filter_param_bytes = filter.to_bytes().ok()?;
 
         Some((
             Server {
-                arity,
-                mat_elem_bit_len,
                 db_num_kv_pairs,
                 parsed_db_mat_d,
                 filter,
             },
             hint_bytes,
+            filter_param_bytes,
         ))
     }
 

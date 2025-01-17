@@ -7,6 +7,7 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize)]
 pub struct BinaryFuseFilter {
     pub seed: [u8; 32],
+    pub arity: u32,
     pub segment_length: u32,
     pub segment_count_length: u32,
     pub num_fingerprints: usize,
@@ -202,6 +203,7 @@ impl BinaryFuseFilter {
         Some((
             BinaryFuseFilter {
                 seed,
+                arity,
                 segment_length,
                 segment_count_length,
                 num_fingerprints,
