@@ -19,23 +19,19 @@ impl BinaryFuseFilter {
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
-        let filter_size = db.len();
+        let db_size = db.len();
 
-        if filter_size == 0 {
+        if db_size == 0 {
             return None;
         }
         if !(arity == 3 || arity == 4) {
             return None;
         }
 
-        let segment_length = segment_length(arity, filter_size as u32).min(1u32 << 18);
+        let segment_length = segment_length(arity, db_size as u32).min(1u32 << 18);
 
-        let size_factor = size_factor(arity, filter_size as u32);
-        let capacity = if filter_size > 1 {
-            ((filter_size as f64) * size_factor).round() as u32
-        } else {
-            0
-        };
+        let size_factor = size_factor(arity, db_size as u32);
+        let capacity = if db_size > 1 { ((db_size as f64) * size_factor).round() as u32 } else { 0 };
 
         let init_segment_count = (capacity + segment_length - 1) / segment_length;
         let (num_fingerprints, segment_count) = {
@@ -56,9 +52,9 @@ impl BinaryFuseFilter {
         let mut alone = vec![0u32; num_fingerprints];
         let mut t2count = vec![0u8; num_fingerprints];
         let mut t2hash = vec![0u64; num_fingerprints];
-        let mut reverse_h = vec![0u8; filter_size];
-        let mut reverse_order = vec![0u64; filter_size + 1];
-        reverse_order[filter_size] = 1;
+        let mut reverse_h = vec![0u8; db_size];
+        let mut reverse_order = vec![0u64; db_size + 1];
+        reverse_order[db_size] = 1;
 
         let mut hash_to_key = HashMap::new();
 
@@ -86,7 +82,7 @@ impl BinaryFuseFilter {
             rng.fill_bytes(&mut seed);
 
             for i in 0..start_pos_len {
-                start_pos[i] = (((i as u64) * (filter_size as u64)) >> block_bits) as usize;
+                start_pos[i] = (((i as u64) * (db_size as u64)) >> block_bits) as usize;
             }
 
             for &key in db.keys() {
@@ -106,7 +102,7 @@ impl BinaryFuseFilter {
             }
 
             let mut error = false;
-            for i in 0..filter_size {
+            for i in 0..db_size {
                 let hash = reverse_order[i];
 
                 let (h0, h1, h2) = hash_batch(hash, segment_length, segment_count_length);
@@ -128,7 +124,7 @@ impl BinaryFuseFilter {
             }
 
             if error {
-                reverse_order[..filter_size].fill(0);
+                reverse_order[..db_size].fill(0);
                 t2count.fill(0);
                 t2hash.fill(0);
 
@@ -185,14 +181,14 @@ impl BinaryFuseFilter {
                 }
             }
 
-            if stack_size == filter_size {
+            if stack_size == db_size {
                 ultimate_size = stack_size;
                 done = true;
 
                 break;
             }
 
-            reverse_order[..filter_size].fill(0);
+            reverse_order[..db_size].fill(0);
             t2count.fill(0);
             t2hash.fill(0);
         }
