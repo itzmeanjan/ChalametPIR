@@ -1,8 +1,10 @@
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::collections::HashMap;
 
+#[derive(Serialize, Deserialize)]
 pub struct BinaryFuseFilter {
     pub seed: [u8; 32],
     pub segment_length: u32,
@@ -210,6 +212,14 @@ impl BinaryFuseFilter {
             reverse_h,
             hash_to_key,
         ))
+    }
+
+    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
+        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, String> {
+        bincode::deserialize(bytes).map_err(|err| format!("Failed to deserialize: {}", err))
     }
 }
 
