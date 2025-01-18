@@ -101,6 +101,9 @@ impl<'a> Client<'a> {
                 let rounding_floor = rounding_factor / 2;
                 let plaintext_modulo = 1u32 << self.filter.mat_elem_bit_len;
 
+                let hashed_key = binary_fuse_filter::hash_of_key(key);
+                let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
+
                 let recovered_row = (0..response_vector.get_num_cols())
                     .map(|idx| {
                         let unscaled_res = response_vector[(0, idx)].wrapping_sub(secret_vec_c[(0, idx)]);
@@ -113,11 +116,12 @@ impl<'a> Client<'a> {
                             rounded_res += 1;
                         }
 
-                        rounded_res % plaintext_modulo
+                        let masked = rounded_res % plaintext_modulo;
+                        let unmasked = masked.wrapping_add(binary_fuse_filter::mix(hash, idx as u64) as u32) % plaintext_modulo;
+
+                        unmasked
                     })
                     .collect::<Vec<u32>>();
-
-                let hashed_key = binary_fuse_filter::hash_of_key(key);
 
                 let value = match serialization::decode_kv_from_row(&recovered_row, self.filter.mat_elem_bit_len) {
                     Some(mut decoded_kv) => {
