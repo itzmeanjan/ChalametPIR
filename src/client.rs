@@ -149,7 +149,7 @@ impl<'a> Client<'a> {
         }
     }
 
-    pub const fn calculate_query_indicator(&self) -> u32 {
+    const fn calculate_query_indicator(&self) -> u32 {
         const MODULUS: u64 = u32::MAX as u64 + 1;
         let plaintext_modulo = 1u64 << self.filter.mat_elem_bit_len;
 
