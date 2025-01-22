@@ -16,21 +16,21 @@ pub struct BinaryFuseFilter {
 }
 
 impl BinaryFuseFilter {
-    pub fn construct_filter<'a, const arity: u32>(
+    pub fn construct_filter<'a, const ARITY: u32>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
-        const { assert!(arity == 3 || arity == 4) }
+        const { assert!(ARITY == 3 || ARITY == 4) }
 
         let db_size = db.len();
         if db_size == 0 {
             return None;
         }
 
-        let segment_length = segment_length::<arity>(db_size as u32).min(1u32 << 18);
+        let segment_length = segment_length::<ARITY>(db_size as u32).min(1u32 << 18);
 
-        let size_factor = size_factor::<arity>(db_size as u32);
+        let size_factor = size_factor::<ARITY>(db_size as u32);
         let capacity = if db_size > 1 { ((db_size as f64) * size_factor).round() as u32 } else { 0 };
 
         let init_segment_count = (capacity + segment_length - 1) / segment_length;
@@ -38,13 +38,13 @@ impl BinaryFuseFilter {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
                 let proposed = (array_len + segment_length - 1) / segment_length;
-                if proposed < arity {
+                if proposed < ARITY {
                     1
                 } else {
-                    proposed - (arity - 1)
+                    proposed - (ARITY - 1)
                 }
             };
-            let array_len: u32 = (segment_count + arity - 1) * segment_length;
+            let array_len: u32 = (segment_count + ARITY - 1) * segment_length;
             (array_len as usize, segment_count)
         };
         let segment_count_length = segment_count * segment_length;
@@ -200,7 +200,7 @@ impl BinaryFuseFilter {
         Some((
             BinaryFuseFilter {
                 seed,
-                arity,
+                arity: ARITY,
                 segment_length,
                 segment_count_length,
                 num_fingerprints,

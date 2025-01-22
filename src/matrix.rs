@@ -130,13 +130,12 @@ impl Matrix {
         Some(vec)
     }
 
-    pub fn from_kv_database(
+    pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
-        arity: u32,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
-        match binary_fuse_filter::BinaryFuseFilter::construct_filter(&db, arity, mat_elem_bit_len, max_attempt_count) {
+        match binary_fuse_filter::BinaryFuseFilter::construct_filter::<ARITY>(&db, mat_elem_bit_len, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
 
@@ -370,26 +369,24 @@ mod test {
         const MAX_MAT_ELEM_BIT_LEN: usize = 10;
 
         for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for arity in MIN_ARITY..=MAX_ARITY {
-                for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                    let kv_db = generate_random_kv_database(num_kv_pairs);
-                    let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
+                let kv_db = generate_random_kv_database(num_kv_pairs);
+                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                    let (db_mat, filter) = Matrix::from_kv_database(kv_db_as_ref.clone(), arity, mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
-                        .expect("Must be able to encode key-value database as matrix");
+                let (db_mat, filter) = Matrix::from_kv_database::<MIN_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                    .expect("Must be able to encode key-value database as matrix");
 
-                    for &key in kv_db_as_ref.keys() {
-                        let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                        let computed_value = db_mat
-                            .recover_value_from_encoded_kv_database(key, &filter)
-                            .expect("Must be able to recover value from encoded key-value database matrix");
+                for &key in kv_db_as_ref.keys() {
+                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                    let computed_value = db_mat
+                        .recover_value_from_encoded_kv_database(key, &filter)
+                        .expect("Must be able to recover value from encoded key-value database matrix");
 
-                        assert_eq!(
-                            expected_value, computed_value,
-                            "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                            num_kv_pairs, arity, mat_elem_bit_len
-                        );
-                    }
+                    assert_eq!(
+                        expected_value, computed_value,
+                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                        num_kv_pairs, MIN_ARITY, mat_elem_bit_len
+                    );
                 }
             }
         }

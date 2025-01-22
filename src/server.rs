@@ -12,13 +12,13 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn setup(arity: u32, mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
+    pub fn setup<const ARITY: u32>(mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
         let db_num_kv_pairs = db.len();
         if !db_num_kv_pairs.is_power_of_two() {
             return None;
         }
 
-        let (parsed_db_mat_d, filter) = Matrix::from_kv_database(db, arity, mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)?;
+        let (parsed_db_mat_d, filter) = Matrix::from_kv_database::<ARITY>(db, mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)?;
 
         let pub_mat_a_num_rows = LWE_DIMENSION;
         let pub_mat_a_num_cols = filter.num_fingerprints;
