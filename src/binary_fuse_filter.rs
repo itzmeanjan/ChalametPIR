@@ -267,7 +267,7 @@ pub const fn murmur64(mut h: u64) -> u64 {
 
 #[inline(always)]
 pub const fn mix(key: u64, seed: u64) -> u64 {
-    murmur64(key.overflowing_add(seed).0)
+    murmur64(key.wrapping_add(seed))
 }
 
 #[inline(always)]
@@ -297,7 +297,7 @@ pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         .map(|&k| {
             seed_words
                 .into_iter()
-                .fold(0u64, |acc, seed_word| murmur64(acc.overflowing_add(mix(k, seed_word)).0))
+                .fold(0u64, |acc, seed_word| murmur64(acc.wrapping_add(mix(k, seed_word))))
         })
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
