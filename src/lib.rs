@@ -4,3 +4,5 @@ mod matrix;
 mod params;
 mod serialization;
 mod server;
+
+mod test_pir;
