@@ -223,12 +223,12 @@ impl BinaryFuseFilter {
 }
 
 #[inline(always)]
-pub fn segment_length<const arity: u32>(size: u32) -> u32 {
+pub fn segment_length<const ARITY: u32>(size: u32) -> u32 {
     if size == 0 {
         return 4;
     }
 
-    match arity {
+    match ARITY {
         3 => 1u32 << ((size as f64).ln() / 3.33_f64.ln() + 2.25).floor() as usize,
         4 => 1u32 << ((size as f64).ln() / 2.91_f64.ln() - 0.5).floor() as usize,
         _ => 65536,
@@ -236,8 +236,8 @@ pub fn segment_length<const arity: u32>(size: u32) -> u32 {
 }
 
 #[inline(always)]
-pub fn size_factor<const arity: u32>(size: u32) -> f64 {
-    match arity {
+pub fn size_factor<const ARITY: u32>(size: u32) -> f64 {
+    match ARITY {
         3 => 1.125_f64.max(0.875 + 0.25 * 1e6_f64.ln() / (size as f64).ln()),
         4 => 1.075_f64.max(0.77 + 0.305 * 6e5_f64.ln() / (size as f64).ln()),
         _ => 2.0,
