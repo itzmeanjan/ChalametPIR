@@ -93,7 +93,7 @@ impl<'a> Client<'a> {
                 let secret_vec_c = &query.vec_c;
 
                 let response_vector = Matrix::from_bytes(response_bytes).ok()?;
-                if response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols() {
+                if !(response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols()) {
                     return None;
                 }
 
