@@ -16,24 +16,21 @@ pub struct BinaryFuseFilter {
 }
 
 impl BinaryFuseFilter {
-    pub fn construct_filter<'a>(
+    pub fn construct_filter<'a, const arity: u32>(
         db: &HashMap<&'a [u8], &[u8]>,
-        arity: u32,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
-        let db_size = db.len();
+        const { assert!(arity == 3 || arity == 4) }
 
+        let db_size = db.len();
         if db_size == 0 {
             return None;
         }
-        if !(arity == 3 || arity == 4) {
-            return None;
-        }
 
-        let segment_length = segment_length(arity, db_size as u32).min(1u32 << 18);
+        let segment_length = segment_length::<arity>(db_size as u32).min(1u32 << 18);
 
-        let size_factor = size_factor(arity, db_size as u32);
+        let size_factor = size_factor::<arity>(db_size as u32);
         let capacity = if db_size > 1 { ((db_size as f64) * size_factor).round() as u32 } else { 0 };
 
         let init_segment_count = (capacity + segment_length - 1) / segment_length;
@@ -226,7 +223,7 @@ impl BinaryFuseFilter {
 }
 
 #[inline(always)]
-pub fn segment_length(arity: u32, size: u32) -> u32 {
+pub fn segment_length<const arity: u32>(size: u32) -> u32 {
     if size == 0 {
         return 4;
     }
@@ -239,7 +236,7 @@ pub fn segment_length(arity: u32, size: u32) -> u32 {
 }
 
 #[inline(always)]
-pub fn size_factor(arity: u32, size: u32) -> f64 {
+pub fn size_factor<const arity: u32>(size: u32) -> f64 {
     match arity {
         3 => 1.125_f64.max(0.875 + 0.25 * 1e6_f64.ln() / (size as f64).ln()),
         4 => 1.075_f64.max(0.77 + 0.305 * 6e5_f64.ln() / (size as f64).ln()),
