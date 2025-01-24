@@ -1,4 +1,4 @@
-use crate::{
+use crate::pir_internals::{
     binary_fuse_filter::{self},
     branch_opt_util, serialization,
 };
@@ -486,7 +486,7 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
 
 #[cfg(test)]
 mod test {
-    use crate::matrix::Matrix;
+    use crate::pir_internals::matrix::Matrix;
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;

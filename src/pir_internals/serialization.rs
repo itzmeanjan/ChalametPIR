@@ -171,7 +171,7 @@ pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
 
 #[cfg(test)]
 mod test {
-    use crate::serialization::{decode_kv_from_row, encode_kv_as_row};
+    use crate::pir_internals::serialization::{decode_kv_from_row, encode_kv_as_row};
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use sha3::{Digest, Sha3_256};

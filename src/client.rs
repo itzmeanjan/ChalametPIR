@@ -1,4 +1,4 @@
-use crate::{
+use crate::pir_internals::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     branch_opt_util,
     matrix::Matrix,
