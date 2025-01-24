@@ -1,6 +1,6 @@
 use crate::{
     binary_fuse_filter::{self},
-    serialization,
+    branch_opt_util, serialization,
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -24,7 +24,7 @@ pub struct Matrix {
 
 impl Matrix {
     pub fn new(rows: usize, cols: usize) -> Option<Matrix> {
-        if !((rows > 0) && (cols > 0)) {
+        if branch_opt_util::unlikely(!((rows > 0) && (cols > 0))) {
             None
         } else {
             Some(Matrix {
@@ -81,7 +81,7 @@ impl Matrix {
             let to_be_filled_num_elems = min(fillable_num_elems_from_buf, required_num_elems);
 
             let mut local_idx = cur_elem_idx;
-            while local_idx < (cur_elem_idx + to_be_filled_num_elems) {
+            while branch_opt_util::likely(local_idx < (cur_elem_idx + to_be_filled_num_elems)) {
                 mat.elems[local_idx] = u32::from_le_bytes(buffer[buf_offset..(buf_offset + 4)].try_into().unwrap());
 
                 local_idx += 1;
@@ -95,7 +95,7 @@ impl Matrix {
     }
 
     pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Option<Matrix> {
-        if !(rows == 1 || cols == 1) {
+        if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return None;
         }
 
@@ -108,10 +108,10 @@ impl Matrix {
         let num_elems = rows * cols;
         let mut elem_idx = 0;
 
-        while elem_idx < num_elems {
+        while branch_opt_util::likely(elem_idx < num_elems) {
             let mut val = u32::MAX;
 
-            while val > TERNARY_REJECTION_SAMPLING_MAX {
+            while branch_opt_util::unlikely(val > TERNARY_REJECTION_SAMPLING_MAX) {
                 val = rng.gen::<u32>();
             }
 
@@ -140,7 +140,10 @@ impl Matrix {
         match ARITY {
             3 => Self::from_kv_database_with_3_wise_xor_filter(db, mat_elem_bit_len, max_attempt_count),
             4 => Self::from_kv_database_with_4_wise_xor_filter(db, mat_elem_bit_len, max_attempt_count),
-            _ => panic!("Unsupported arity requeted for underlying Binary Fuse Filter !"),
+            _ => {
+                branch_opt_util::cold();
+                panic!("Unsupported arity requeted for underlying Binary Fuse Filter !")
+            }
         }
     }
 
@@ -151,7 +154,10 @@ impl Matrix {
         match ARITY {
             3 => self.recover_value_from_3_wise_xor_filter(key, filter),
             4 => self.recover_value_from_4_wise_xor_filter(key, filter),
-            _ => panic!("Unsupported arity requeted for underlying Binary Fuse Filter !"),
+            _ => {
+                branch_opt_util::cold();
+                panic!("Unsupported arity requeted for underlying Binary Fuse Filter !")
+            }
         }
     }
 
@@ -218,7 +224,10 @@ impl Matrix {
 
                 Some((mat, filter))
             }
-            None => None,
+            None => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
@@ -247,14 +256,17 @@ impl Matrix {
                 hashed_key_as_bytes[16..24].copy_from_slice(&hashed_key[2].to_le_bytes());
                 hashed_key_as_bytes[24..].copy_from_slice(&hashed_key[3].to_le_bytes());
 
-                if (0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0 {
+                if branch_opt_util::likely((0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0) {
                     decoded_kv.drain(..hashed_key_as_bytes.len());
                     Some(decoded_kv)
                 } else {
                     None
                 }
             }
-            None => None,
+            None => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
@@ -326,7 +338,10 @@ impl Matrix {
 
                 Some((mat, filter))
             }
-            None => None,
+            None => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
@@ -359,14 +374,17 @@ impl Matrix {
                 hashed_key_as_bytes[16..24].copy_from_slice(&hashed_key[2].to_le_bytes());
                 hashed_key_as_bytes[24..].copy_from_slice(&hashed_key[3].to_le_bytes());
 
-                if (0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0 {
+                if branch_opt_util::likely((0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0) {
                     decoded_kv.drain(..hashed_key_as_bytes.len());
                     Some(decoded_kv)
                 } else {
                     None
                 }
             }
-            None => None,
+            None => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
@@ -381,7 +399,7 @@ impl Matrix {
                 let expected_num_elems = v.get_num_rows() * v.get_num_cols();
                 let actual_num_elems = v.get_num_elems();
 
-                if expected_num_elems == actual_num_elems {
+                if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
                     Ok(v)
                 } else {
                     Err("Number of rows/ cols and number of elements do not match !".to_string())
@@ -419,7 +437,7 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
     type Output = Option<Matrix>;
 
     fn mul(self, rhs: &'b Matrix) -> Self::Output {
-        if self.cols != rhs.rows {
+        if branch_opt_util::unlikely(self.cols != rhs.rows) {
             return None;
         }
 
@@ -449,7 +467,7 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
     type Output = Option<Matrix>;
 
     fn add(self, rhs: &'b Matrix) -> Self::Output {
-        if !(self.rows == rhs.rows && self.cols == rhs.cols) {
+        if branch_opt_util::unlikely(!(self.rows == rhs.rows && self.cols == rhs.cols)) {
             return None;
         }
 
