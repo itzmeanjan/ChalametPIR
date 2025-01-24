@@ -8,7 +8,6 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct Query {
-    vec_b: Matrix,
     vec_c: Matrix,
 }
 
@@ -90,13 +89,7 @@ impl<'a> Client<'a> {
         }
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
-        self.pending_queries.insert(
-            key,
-            Query {
-                vec_b: query_vec_b,
-                vec_c: secret_vec_c,
-            },
-        );
+        self.pending_queries.insert(key, Query { vec_c: secret_vec_c });
 
         Some(query_bytes)
     }
@@ -154,13 +147,7 @@ impl<'a> Client<'a> {
         }
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
-        self.pending_queries.insert(
-            key,
-            Query {
-                vec_b: query_vec_b,
-                vec_c: secret_vec_c,
-            },
-        );
+        self.pending_queries.insert(key, Query { vec_c: secret_vec_c });
 
         Some(query_bytes)
     }
