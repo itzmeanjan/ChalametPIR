@@ -144,7 +144,8 @@ impl Matrix {
         }
     }
 
-    pub fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+    #[cfg(test)]
+    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {
@@ -221,6 +222,7 @@ impl Matrix {
         }
     }
 
+    #[cfg(test)]
     fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
@@ -328,6 +330,7 @@ impl Matrix {
         }
     }
 
+    #[cfg(test)]
     fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
@@ -508,20 +511,42 @@ mod test {
                 let kv_db = generate_random_kv_database(num_kv_pairs);
                 let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                let (db_mat, filter) = Matrix::from_kv_database::<MIN_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+                // With 3-wise XOR BFF
+                {
+                    let (db_mat, filter) = Matrix::from_kv_database::<MIN_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                        .expect("Must be able to encode key-value database as matrix, using 3-wise xor BFF");
 
-                for &key in kv_db_as_ref.keys() {
-                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                    let computed_value = db_mat
-                        .recover_value_from_encoded_kv_database(key, &filter)
-                        .expect("Must be able to recover value from encoded key-value database matrix");
+                    for &key in kv_db_as_ref.keys() {
+                        let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                        let computed_value = db_mat
+                            .recover_value_from_encoded_kv_database::<MIN_ARITY>(key, &filter)
+                            .expect("Must be able to recover value from encoded key-value database matrix");
 
-                    assert_eq!(
-                        expected_value, computed_value,
-                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                        num_kv_pairs, MIN_ARITY, mat_elem_bit_len
-                    );
+                        assert_eq!(
+                            expected_value, computed_value,
+                            "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                            num_kv_pairs, MIN_ARITY, mat_elem_bit_len
+                        );
+                    }
+                }
+
+                // With 4-wise XOR BFF
+                {
+                    let (db_mat, filter) = Matrix::from_kv_database::<MAX_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                        .expect("Must be able to encode key-value database as matrix, using 4-wise xor BFF");
+
+                    for &key in kv_db_as_ref.keys() {
+                        let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                        let computed_value = db_mat
+                            .recover_value_from_encoded_kv_database::<MAX_ARITY>(key, &filter)
+                            .expect("Must be able to recover value from encoded key-value database matrix");
+
+                        assert_eq!(
+                            expected_value, computed_value,
+                            "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                            num_kv_pairs, MAX_ARITY, mat_elem_bit_len
+                        );
+                    }
                 }
             }
         }
