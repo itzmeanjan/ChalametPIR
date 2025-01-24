@@ -306,7 +306,7 @@ impl BinaryFuseFilter {
                     let hi = get_hash_from_hash(hash, idx, segment_length, segment_count_length) as usize;
 
                     t2count[hi] += 4;
-                    t2count[hi] ^= hi as u8;
+                    t2count[hi] ^= idx as u8;
                     t2hash[hi] ^= hash;
 
                     count_mask |= t2count[hi];
