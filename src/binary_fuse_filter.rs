@@ -16,20 +16,6 @@ pub struct BinaryFuseFilter {
 }
 
 impl BinaryFuseFilter {
-    pub fn construct_filter<'a, const ARITY: u32>(
-        db: &HashMap<&'a [u8], &[u8]>,
-        mat_elem_bit_len: usize,
-        max_attempt_count: usize,
-    ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
-        const { assert!(ARITY == 3 || ARITY == 4) }
-
-        match ARITY {
-            3 => Self::construct_3_wise_xor_filter(db, mat_elem_bit_len, max_attempt_count),
-            4 => Self::construct_4_wise_xor_filter(db, mat_elem_bit_len, max_attempt_count),
-            _ => panic!("Unsupported arity requested !"),
-        }
-    }
-
     pub fn construct_3_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -281,7 +267,7 @@ impl BinaryFuseFilter {
         let start_pos_len: usize = 1 << block_bits;
         let mut start_pos = vec![0usize; start_pos_len];
 
-        let mut h012 = [0u32; 5];
+        let mut h0123 = [0u32; 7];
 
         let mut done = false;
         let mut ultimate_size = 0;
@@ -312,29 +298,22 @@ impl BinaryFuseFilter {
                 hash_to_key.insert(hash, key);
             }
 
-            let mut error = false;
+            let mut count_mask = 0u8;
             for i in 0..db_size {
                 let hash = reverse_order[i];
 
-                let (h0, h1, h2) = hash_batch(hash, segment_length, segment_count_length);
+                for idx in 0..4 {
+                    let hi = get_hash_from_hash(hash, idx, segment_length, segment_count_length) as usize;
 
-                let (h0, h1, h2) = (h0 as usize, h1 as usize, h2 as usize);
+                    t2count[hi] += 4;
+                    t2count[hi] ^= hi as u8;
+                    t2hash[hi] ^= hash;
 
-                t2count[h0] += 4;
-                t2hash[h0] ^= hash;
-
-                t2count[h1] += 4;
-                t2count[h1] ^= 1;
-                t2hash[h1] ^= hash;
-
-                t2count[h2] += 4;
-                t2count[h2] ^= 2;
-                t2hash[h2] ^= hash;
-
-                error = t2count[h0] < 4 || t2count[h1] < 4 || t2count[h2] < 4;
+                    count_mask |= t2count[hi];
+                }
             }
 
-            if error {
+            if count_mask >= 0x80 {
                 reverse_order[..db_size].fill(0);
                 t2count.fill(0);
                 t2hash.fill(0);
@@ -363,32 +342,36 @@ impl BinaryFuseFilter {
                     reverse_order[stack_size] = hash;
                     stack_size += 1;
 
-                    let (h0, h1, h2) = hash_batch(hash, segment_length, segment_count_length);
+                    h0123[1] = get_hash_from_hash(hash, 1, segment_length, segment_count_length);
+                    h0123[2] = get_hash_from_hash(hash, 2, segment_length, segment_count_length);
+                    h0123[3] = get_hash_from_hash(hash, 3, segment_length, segment_count_length);
+                    h0123[4] = get_hash_from_hash(hash, 0, segment_length, segment_count_length);
+                    h0123[5] = h0123[1];
+                    h0123[6] = h0123[2];
 
-                    h012[1] = h1;
-                    h012[2] = h2;
-                    h012[3] = h0;
-                    h012[4] = h012[1];
+                    let other_index: usize = h0123[(found + 1) as usize] as usize;
+                    alone[qsize] = other_index as u32;
+                    qsize += if (t2count[other_index] >> 2) == 2 { 1 } else { 0 };
 
-                    let other_index1 = h012[(found + 1) as usize] as usize;
-                    alone[qsize] = other_index1 as u32;
-                    if (t2count[other_index1] >> 2) == 2 {
-                        qsize += 1;
-                    }
+                    t2count[other_index] -= 4;
+                    t2count[other_index] ^= mod4(found + 1);
+                    t2hash[other_index] ^= hash;
 
-                    t2count[other_index1] -= 4;
-                    t2count[other_index1] ^= mod3(found + 1);
-                    t2hash[other_index1] ^= hash;
+                    let other_index = h0123[(found + 2) as usize] as usize;
+                    alone[qsize] = other_index as u32;
+                    qsize += if (t2count[other_index] >> 2) == 2 { 1 } else { 0 };
 
-                    let other_index2 = h012[(found + 2) as usize] as usize;
-                    alone[qsize] = other_index2 as u32;
-                    if (t2count[other_index2] >> 2) == 2 {
-                        qsize += 1;
-                    }
+                    t2count[other_index] -= 4;
+                    t2count[other_index] ^= mod4(found + 2);
+                    t2hash[other_index] ^= hash;
 
-                    t2count[other_index2] -= 4;
-                    t2count[other_index2] ^= mod3(found + 2);
-                    t2hash[other_index2] ^= hash;
+                    let other_index = h0123[(found + 3) as usize] as usize;
+                    alone[qsize] = other_index as u32;
+                    qsize += if (t2count[other_index] >> 2) == 2 { 1 } else { 0 };
+
+                    t2count[other_index] -= 4;
+                    t2count[other_index] ^= mod4(found + 3);
+                    t2hash[other_index] ^= hash;
                 }
             }
 
@@ -464,6 +447,15 @@ pub const fn mod3(x: u8) -> u8 {
     }
 }
 
+#[inline(always)]
+pub const fn mod4(x: u8) -> u8 {
+    if x > 3 {
+        x - 4
+    } else {
+        x
+    }
+}
+
 /// Computes a 64-bit MurmurHash3-like hash from a 64-bit input.
 /// See https://github.com/aappleby/smhasher/blob/0ff96f7835817a27d0487325b6c16033e2992eb5/src/MurmurHash3.cpp#L81-L90.
 #[inline(always)]
@@ -526,4 +518,17 @@ pub const fn hash_batch(hash: u64, segment_length: u32, segment_count_length: u3
     h2 ^= (hash as u32) & segment_length_mask;
 
     (h0, h1, h2)
+}
+
+#[inline]
+pub const fn get_hash_from_hash(hash: u64, index: usize, segment_length: u32, segment_count_length: u32) -> u32 {
+    let mut h = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
+    h += (index * segment_length as usize) as u64;
+
+    if index > 0 {
+        let segment_length_mask = (segment_length - 1) as u64;
+        h ^= hash >> ((index - 1) * 16) & segment_length_mask;
+    }
+
+    h as u32
 }
