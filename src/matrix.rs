@@ -197,7 +197,79 @@ impl Matrix {
         }
     }
 
-    pub fn recover_value_from_encoded_kv_database(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+    pub fn from_kv_database_with_4_wise_xor_filter(
+        db: HashMap<&[u8], &[u8]>,
+        mat_elem_bit_len: usize,
+        max_attempt_count: usize,
+    ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
+        match binary_fuse_filter::BinaryFuseFilter::construct_4_wise_xor_filter(&db, mat_elem_bit_len, max_attempt_count) {
+            Some((filter, reverse_order, reverse_h, hash_to_key)) => {
+                const HASHED_KEY_BIT_LEN: usize = 256;
+
+                let max_value_byte_len = db.values().map(|v| v.len()).max()?;
+                let max_value_bit_len = max_value_byte_len * 8;
+
+                let rows = filter.num_fingerprints;
+                let cols: usize = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len);
+
+                let mut mat = Matrix::new(rows, cols)?;
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let mut h0123 = [0u32; 7];
+
+                for i in (0..filter.filter_size).rev() {
+                    let hash = reverse_order[i];
+                    let key = *hash_to_key.get(&hash)?;
+                    let value = *db.get(key)?;
+
+                    let found = reverse_h[i] as usize;
+                    h0123[0] = binary_fuse_filter::get_hash_from_hash(hash, 0, filter.segment_length, filter.segment_count_length);
+                    h0123[1] = binary_fuse_filter::get_hash_from_hash(hash, 1, filter.segment_length, filter.segment_count_length);
+                    h0123[2] = binary_fuse_filter::get_hash_from_hash(hash, 2, filter.segment_length, filter.segment_count_length);
+                    h0123[3] = binary_fuse_filter::get_hash_from_hash(hash, 3, filter.segment_length, filter.segment_count_length);
+                    h0123[4] = h0123[0];
+                    h0123[5] = h0123[1];
+                    h0123[6] = h0123[2];
+
+                    let row = serialization::encode_kv_as_row(key, value, mat_elem_bit_len, cols);
+
+                    let mat_row_idx0 = h0123[found + 0] as usize;
+                    let mat_row_idx1 = h0123[found + 1] as usize;
+                    let mat_row_idx2 = h0123[found + 2] as usize;
+                    let mat_row_idx3 = h0123[found + 3] as usize;
+
+                    let elems = (0..cols)
+                        .map(|elem_idx| {
+                            let f1 = mat.elems[mat_row_idx1 * cols + elem_idx];
+                            (elem_idx, row[elem_idx].wrapping_sub(f1))
+                        })
+                        .map(|(elem_idx, elem)| {
+                            let f2 = mat.elems[mat_row_idx2 * cols + elem_idx];
+                            (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
+                        })
+                        .map(|(elem_idx, elem)| {
+                            let f2 = mat.elems[mat_row_idx3 * cols + elem_idx];
+                            (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
+                        })
+                        .map(|(elem_idx, elem)| {
+                            let mask = (binary_fuse_filter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask;
+                            elem.wrapping_sub(mask) & mat_elem_mask
+                        })
+                        .collect::<Vec<u32>>();
+
+                    let fingerprints_begin_at = mat_row_idx0 * cols;
+                    let fingerprints_end_at = fingerprints_begin_at + cols;
+
+                    mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
+                }
+
+                Some((mat, filter))
+            }
+            None => None,
+        }
+    }
+
+    pub fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
