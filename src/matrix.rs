@@ -1,5 +1,5 @@
 use crate::{
-    binary_fuse_filter::{self, BinaryFuseFilter},
+    binary_fuse_filter::{self},
     serialization,
 };
 use rand::prelude::*;
@@ -145,7 +145,7 @@ impl Matrix {
     }
 
     #[cfg(test)]
-    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {
@@ -223,7 +223,7 @@ impl Matrix {
     }
 
     #[cfg(test)]
-    fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
@@ -331,7 +331,7 @@ impl Matrix {
     }
 
     #[cfg(test)]
-    fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
@@ -494,59 +494,70 @@ mod test {
     }
 
     #[test]
-    fn encode_kv_database_and_recover_values() {
+    fn encode_kv_database_using_3_wise_xor_filter_and_recover_values() {
         const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
+        const ARITY: u32 = 3;
 
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
-        const MIN_ARITY: u32 = 3;
-        const MAX_ARITY: u32 = 4;
-
         const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 10;
+        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
 
         for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
             for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
                 let kv_db = generate_random_kv_database(num_kv_pairs);
                 let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                // With 3-wise XOR BFF
-                {
-                    let (db_mat, filter) = Matrix::from_kv_database::<MIN_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
-                        .expect("Must be able to encode key-value database as matrix, using 3-wise xor BFF");
+                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                    .expect("Must be able to encode key-value database as matrix");
 
-                    for &key in kv_db_as_ref.keys() {
-                        let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                        let computed_value = db_mat
-                            .recover_value_from_encoded_kv_database::<MIN_ARITY>(key, &filter)
-                            .expect("Must be able to recover value from encoded key-value database matrix");
+                for &key in kv_db_as_ref.keys() {
+                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                    let computed_value = db_mat
+                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                        .expect("Must be able to recover value from encoded key-value database matrix");
 
-                        assert_eq!(
-                            expected_value, computed_value,
-                            "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                            num_kv_pairs, MIN_ARITY, mat_elem_bit_len
-                        );
-                    }
+                    assert_eq!(
+                        expected_value, computed_value,
+                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                        num_kv_pairs, ARITY, mat_elem_bit_len
+                    );
                 }
+            }
+        }
+    }
 
-                // With 4-wise XOR BFF
-                {
-                    let (db_mat, filter) = Matrix::from_kv_database::<MAX_ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
-                        .expect("Must be able to encode key-value database as matrix, using 4-wise xor BFF");
+    #[test]
+    fn encode_kv_database_using_4_wise_xor_filter_and_recover_values() {
+        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
+        const ARITY: u32 = 4;
 
-                    for &key in kv_db_as_ref.keys() {
-                        let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                        let computed_value = db_mat
-                            .recover_value_from_encoded_kv_database::<MAX_ARITY>(key, &filter)
-                            .expect("Must be able to recover value from encoded key-value database matrix");
+        const MIN_NUM_KV_PAIRS: usize = 1_000;
+        const MAX_NUM_KV_PAIRS: usize = 10_000;
 
-                        assert_eq!(
-                            expected_value, computed_value,
-                            "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                            num_kv_pairs, MAX_ARITY, mat_elem_bit_len
-                        );
-                    }
+        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
+        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+
+        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
+            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
+                let kv_db = generate_random_kv_database(num_kv_pairs);
+                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                    .expect("Must be able to encode key-value database as matrix");
+
+                for &key in kv_db_as_ref.keys() {
+                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                    let computed_value = db_mat
+                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                        .expect("Must be able to recover value from encoded key-value database matrix");
+
+                    assert_eq!(
+                        expected_value, computed_value,
+                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                        num_kv_pairs, ARITY, mat_elem_bit_len
+                    );
                 }
             }
         }
