@@ -130,12 +130,12 @@ impl Matrix {
         Some(vec)
     }
 
-    pub fn from_kv_database<const ARITY: u32>(
+    pub fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
     ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
-        match binary_fuse_filter::BinaryFuseFilter::construct_filter::<ARITY>(&db, mat_elem_bit_len, max_attempt_count) {
+        match binary_fuse_filter::BinaryFuseFilter::construct_3_wise_xor_filter(&db, mat_elem_bit_len, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
 
