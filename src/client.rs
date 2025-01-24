@@ -38,6 +38,14 @@ impl<'a> Client<'a> {
     }
 
     pub fn query(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
+        match self.filter.arity {
+            3 => self.query_for_3_wise_xor_filter(key),
+            4 => self.query_for_4_wise_xor_filter(key),
+            _ => None,
+        }
+    }
+
+    fn query_for_3_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
         if self.pending_queries.contains_key(key) {
             return None;
         }
@@ -74,6 +82,66 @@ impl<'a> Client<'a> {
             return None;
         }
         query_vec_b[(0, h2 as usize)] = added_val;
+
+        let query_bytes = query_vec_b.to_bytes().ok()?;
+        self.pending_queries.insert(
+            key,
+            Query {
+                vec_b: query_vec_b,
+                vec_c: secret_vec_c,
+            },
+        );
+
+        Some(query_bytes)
+    }
+
+    fn query_for_4_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
+        if self.pending_queries.contains_key(key) {
+            return None;
+        }
+
+        let secret_vec_num_cols = LWE_DIMENSION;
+        let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
+
+        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
+
+        let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
+        let secret_vec_c = (&secret_vec_s * &self.hint_mat_m)?;
+
+        let hashed_key = binary_fuse_filter::hash_of_key(key);
+        let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
+
+        let h0 = binary_fuse_filter::get_hash_from_hash(hash, 0, self.filter.segment_length, self.filter.segment_count_length);
+        let h1 = binary_fuse_filter::get_hash_from_hash(hash, 1, self.filter.segment_length, self.filter.segment_count_length);
+        let h2 = binary_fuse_filter::get_hash_from_hash(hash, 2, self.filter.segment_length, self.filter.segment_count_length);
+        let h3 = binary_fuse_filter::get_hash_from_hash(hash, 3, self.filter.segment_length, self.filter.segment_count_length);
+
+        let query_indicator = self.calculate_query_indicator();
+
+        let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h0 as usize)] = added_val;
+
+        let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h1 as usize)] = added_val;
+
+        let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h2 as usize)] = added_val;
+
+        let (added_val, flag) = query_vec_b[(0, h3 as usize)].overflowing_add(query_indicator);
+        if flag {
+            return None;
+        }
+        query_vec_b[(0, h3 as usize)] = added_val;
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
         self.pending_queries.insert(
