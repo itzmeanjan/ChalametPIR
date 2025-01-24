@@ -26,12 +26,10 @@ fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>>
 }
 
 #[test]
-fn test_keyword_pir() {
+fn test_keyword_pir_with_3_wise_xor_filter() {
     const NUM_KV_PAIRS: usize = 2usize.pow(16);
     const MAT_ELEM_BIT_LEN: usize = 10;
-
-    const MIN_ARITY: u32 = 3;
-    const _MAX_ARITY: u32 = 4;
+    const ARITY: u32 = 3;
 
     let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
@@ -41,14 +39,39 @@ fn test_keyword_pir() {
     let mut seed_μ = [0u8; 32];
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<MIN_ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
     let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
-    kv_db_as_ref.iter().take(10).for_each(|(&key, &original_value)| {
-        let query_bytes = client.query(key).expect("Client can't generate query");
-        let response_bytes = server.respond(&query_bytes).expect("Server can't respond");
-        let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
+    let mut kv_iter = kv_db_as_ref.iter();
+    let (&(mut key), &(mut value)) = kv_iter.next().unwrap();
+    let mut is_current_kv_pair_processed = false;
 
-        assert_eq!(original_value, received_value);
-    });
+    loop {
+        if is_current_kv_pair_processed {
+            match kv_iter.next() {
+                Some((&k, &v)) => {
+                    key = k;
+                    value = v;
+                }
+                None => {
+                    // No more KV pairs to test
+                    break;
+                }
+            };
+        }
+
+        match client.query(key) {
+            Some(query_bytes) => {
+                let response_bytes = server.respond(&query_bytes).expect("Server can't respond");
+                let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
+
+                assert_eq!(value, received_value);
+                is_current_kv_pair_processed = true;
+            }
+            None => {
+                is_current_kv_pair_processed = false;
+                continue;
+            }
+        }
+    }
 }
