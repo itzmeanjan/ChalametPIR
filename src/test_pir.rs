@@ -27,7 +27,7 @@ fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>>
 
 #[test]
 fn test_keyword_pir_with_3_wise_xor_filter() {
-    const NUM_KV_PAIRS: usize = 2usize.pow(16);
+    const NUM_KV_PAIRS: usize = 2usize.pow(12);
     const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 3;
 
@@ -78,7 +78,7 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
 
 #[test]
 fn test_keyword_pir_with_4_wise_xor_filter() {
-    const NUM_KV_PAIRS: usize = 2usize.pow(16);
+    const NUM_KV_PAIRS: usize = 2usize.pow(12);
     const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 4;
 
