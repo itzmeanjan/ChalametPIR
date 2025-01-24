@@ -1,5 +1,6 @@
 use crate::{
     binary_fuse_filter::{self, BinaryFuseFilter},
+    branch_opt_util,
     matrix::Matrix,
     params::{LWE_DIMENSION, SEED_BYTE_LEN},
     serialization,
@@ -26,7 +27,6 @@ impl<'a> Client<'a> {
         let pub_mat_a_num_cols = filter.num_fingerprints;
 
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
-
         let hint_mat_m = Matrix::from_bytes(hint_bytes).ok()?;
 
         Some(Client {
@@ -41,12 +41,15 @@ impl<'a> Client<'a> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),
             4 => self.query_for_4_wise_xor_filter(key),
-            _ => None,
+            _ => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
     fn query_for_3_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
-        if self.pending_queries.contains_key(key) {
+        if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
             return None;
         }
 
@@ -66,22 +69,25 @@ impl<'a> Client<'a> {
         let query_indicator = self.calculate_query_indicator();
 
         let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h0 as usize)] = added_val;
         }
-        query_vec_b[(0, h0 as usize)] = added_val;
 
         let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h1 as usize)] = added_val;
         }
-        query_vec_b[(0, h1 as usize)] = added_val;
 
         let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h2 as usize)] = added_val;
         }
-        query_vec_b[(0, h2 as usize)] = added_val;
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
         self.pending_queries.insert(
@@ -96,7 +102,7 @@ impl<'a> Client<'a> {
     }
 
     fn query_for_4_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
-        if self.pending_queries.contains_key(key) {
+        if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
             return None;
         }
 
@@ -120,28 +126,32 @@ impl<'a> Client<'a> {
         let query_indicator = self.calculate_query_indicator();
 
         let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h0 as usize)] = added_val;
         }
-        query_vec_b[(0, h0 as usize)] = added_val;
 
         let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h1 as usize)] = added_val;
         }
-        query_vec_b[(0, h1 as usize)] = added_val;
 
         let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h2 as usize)] = added_val;
         }
-        query_vec_b[(0, h2 as usize)] = added_val;
 
         let (added_val, flag) = query_vec_b[(0, h3 as usize)].overflowing_add(query_indicator);
-        if flag {
+        if branch_opt_util::unlikely(flag) {
             return None;
+        } else {
+            query_vec_b[(0, h3 as usize)] = added_val;
         }
-        query_vec_b[(0, h3 as usize)] = added_val;
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
         self.pending_queries.insert(
@@ -161,13 +171,13 @@ impl<'a> Client<'a> {
                 let secret_vec_c = &query.vec_c;
 
                 let response_vector = Matrix::from_bytes(response_bytes).ok()?;
-                if !(response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols()) {
+                if branch_opt_util::unlikely(!(response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols())) {
                     return None;
                 }
 
                 let rounding_factor = self.calculate_query_indicator();
                 let rounding_floor = rounding_factor / 2;
-                let plaintext_modulo = 1u32 << self.filter.mat_elem_bit_len;
+                let mat_elem_mask = (1u32 << self.filter.mat_elem_bit_len) - 1;
 
                 let hashed_key = binary_fuse_filter::hash_of_key(key);
                 let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
@@ -184,8 +194,8 @@ impl<'a> Client<'a> {
                             rounded_res += 1;
                         }
 
-                        let masked = rounded_res % plaintext_modulo;
-                        let unmasked = masked.wrapping_add(binary_fuse_filter::mix(hash, idx as u64) as u32) % plaintext_modulo;
+                        let masked = rounded_res & mat_elem_mask;
+                        let unmasked = masked.wrapping_add(binary_fuse_filter::mix(hash, idx as u64) as u32) & mat_elem_mask;
 
                         unmasked
                     })
@@ -207,13 +217,19 @@ impl<'a> Client<'a> {
                             None
                         }
                     }
-                    None => None,
+                    None => {
+                        branch_opt_util::cold();
+                        None
+                    }
                 };
 
                 self.pending_queries.remove(key);
                 value
             }
-            None => None,
+            None => {
+                branch_opt_util::cold();
+                None
+            }
         }
     }
 
