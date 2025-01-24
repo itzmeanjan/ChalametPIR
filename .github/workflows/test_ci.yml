@@ -21,4 +21,4 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build and Test on ${{ matrix.os }}
-        run: cargo test --lib --release
+        run: cargo test --profile test-release -j$(nproc --all)
