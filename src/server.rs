@@ -1,5 +1,4 @@
 use crate::{
-    binary_fuse_filter::BinaryFuseFilter,
     branch_opt_util,
     matrix::Matrix,
     params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
@@ -7,9 +6,7 @@ use crate::{
 use std::collections::HashMap;
 
 pub struct Server {
-    db_num_kv_pairs: usize,
     parsed_db_mat_d: Matrix,
-    filter: BinaryFuseFilter,
 }
 
 impl Server {
@@ -30,15 +27,7 @@ impl Server {
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
         let filter_param_bytes = filter.to_bytes().ok()?;
 
-        Some((
-            Server {
-                db_num_kv_pairs,
-                parsed_db_mat_d,
-                filter,
-            },
-            hint_bytes,
-            filter_param_bytes,
-        ))
+        Some((Server { parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }
 
     pub fn respond(&self, query: &[u8]) -> Option<Vec<u8>> {
