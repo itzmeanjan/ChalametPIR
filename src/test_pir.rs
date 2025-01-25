@@ -1,29 +1,10 @@
 #![cfg(test)]
 
+use crate::pir_internals::matrix::test::generate_random_kv_database;
 use crate::{client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
-
-fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>> {
-    const KEY_BYTE_LEN: usize = 32;
-    const VALUE_BYTE_LEN: usize = 64;
-
-    let mut kv = HashMap::with_capacity(num_kv_pairs);
-    let mut rng = ChaCha8Rng::from_entropy();
-
-    for _ in 0..num_kv_pairs {
-        let mut key = vec![0u8; KEY_BYTE_LEN];
-        let mut value = vec![0u8; VALUE_BYTE_LEN];
-
-        rng.fill_bytes(&mut key);
-        rng.fill_bytes(&mut value);
-
-        kv.insert(key, value);
-    }
-
-    kv
-}
 
 #[test]
 fn test_keyword_pir_with_3_wise_xor_filter() {

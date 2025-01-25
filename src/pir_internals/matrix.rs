@@ -485,22 +485,27 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use crate::pir_internals::matrix::Matrix;
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;
 
-    fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>> {
-        const KEY_BYTE_LEN: usize = 32;
-        const VALUE_BYTE_LEN: usize = 256;
+    pub fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>> {
+        const MIN_KEY_BYTE_LEN: usize = 16;
+        const MAX_KEY_BYTE_LEN: usize = 32;
+        const MIN_VALUE_BYTE_LEN: usize = 1;
+        const MAX_VALUE_BYTE_LEN: usize = 512;
 
         let mut kv = HashMap::with_capacity(num_kv_pairs);
         let mut rng = ChaCha8Rng::from_entropy();
 
         for _ in 0..num_kv_pairs {
-            let mut key = vec![0u8; KEY_BYTE_LEN];
-            let mut value = vec![0u8; VALUE_BYTE_LEN];
+            let key_byte_len = rng.gen_range(MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN);
+            let value_byte_len = rng.gen_range(MIN_VALUE_BYTE_LEN..=MAX_VALUE_BYTE_LEN);
+
+            let mut key = vec![0u8; key_byte_len];
+            let mut value = vec![0u8; value_byte_len];
 
             rng.fill_bytes(&mut key);
             rng.fill_bytes(&mut value);
