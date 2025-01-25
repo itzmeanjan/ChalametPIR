@@ -145,7 +145,7 @@ impl Matrix {
             4 => Self::from_kv_database_with_4_wise_xor_filter(db, mat_elem_bit_len, max_attempt_count),
             _ => {
                 branch_opt_util::cold();
-                panic!("Unsupported arity requeted for underlying Binary Fuse Filter !")
+                panic!("Unsupported arity requested for underlying Binary Fuse Filter !")
             }
         }
     }
@@ -159,7 +159,7 @@ impl Matrix {
             4 => self.recover_value_from_4_wise_xor_filter(key, filter),
             _ => {
                 branch_opt_util::cold();
-                panic!("Unsupported arity requeted for underlying Binary Fuse Filter !")
+                panic!("Unsupported arity requested for underlying Binary Fuse Filter !")
             }
         }
     }
