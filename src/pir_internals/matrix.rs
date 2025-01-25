@@ -15,6 +15,9 @@ use std::{
     ops::{Add, Index, IndexMut, Mul},
 };
 
+#[cfg(test)]
+use std::ops::Neg;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
     rows: usize,
@@ -485,6 +488,33 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
 }
 
 #[cfg(test)]
+impl Neg for Matrix {
+    type Output = Option<Matrix>;
+
+    fn neg(self) -> Self::Output {
+        -(&self)
+    }
+}
+
+#[cfg(test)]
+impl<'a> Neg for &'a Matrix {
+    type Output = Option<Matrix>;
+
+    fn neg(self) -> Self::Output {
+        let mut res = Matrix::new(self.rows, self.cols)?;
+
+        (0..self.rows)
+            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
+            .flatten()
+            .for_each(|idx| {
+                res[idx] = self[idx].wrapping_neg();
+            });
+
+        Some(res)
+    }
+}
+
+#[cfg(test)]
 pub mod test {
     use crate::pir_internals::matrix::Matrix;
     use rand::prelude::*;
@@ -597,14 +627,33 @@ pub mod test {
         rng.fill_bytes(&mut seed);
 
         let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
-        let matrix_b = Matrix::identity(NUM_COLS_IN_MATRIX).expect("Identity must be created");
-        let matrix_c = Matrix::identity(NUM_ROWS_IN_MATRIX).expect("Identity must be created");
+        let matrix_i = Matrix::identity(NUM_COLS_IN_MATRIX).expect("Identity matrix must be created");
+        let matrix_i_prime = Matrix::identity(NUM_ROWS_IN_MATRIX).expect("Identity matrix must be created");
 
-        let matrix_ab = (matrix_a.clone() * matrix_b).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ab);
+        let matrix_ai = (&matrix_a * &matrix_i).expect("Matrix multiplication must pass");
+        assert_eq!(matrix_a, matrix_ai);
 
-        let matrix_ca = (matrix_c * matrix_a.clone()).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ca);
+        let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
+        assert_eq!(matrix_a, matrix_ia);
+    }
+
+    #[test]
+    fn matrix_addition_is_correct() {
+        const NUM_ROWS_IN_MATRIX: usize = 1024;
+        const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
+
+        let mut rng = ChaCha8Rng::from_entropy();
+
+        let mut seed = [0u8; 32];
+        rng.fill_bytes(&mut seed);
+
+        let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
+        let matrix_neg_a = (-&matrix_a).expect("Must be able to negate matrix");
+
+        let matrix_a_plus_neg_a = (&matrix_a + &matrix_neg_a).expect("Matrix addition must pass");
+        let matrix_zero = Matrix::new(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX).expect("Must be able to create zero matrix");
+
+        assert_eq!(matrix_a_plus_neg_a, matrix_zero);
     }
 
     #[test]
