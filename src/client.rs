@@ -63,7 +63,7 @@ impl<'a> Client<'a> {
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
         let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
-        let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, self.filter.segment_length, self.filter.segment_count_length);
+        let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, self.filter.segment_length, self.filter.segment_count_length);
 
         let query_indicator = self.calculate_query_indicator();
 
@@ -110,11 +110,7 @@ impl<'a> Client<'a> {
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
         let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
-
-        let h0 = binary_fuse_filter::get_hash_from_hash(hash, 0, self.filter.segment_length, self.filter.segment_count_length);
-        let h1 = binary_fuse_filter::get_hash_from_hash(hash, 1, self.filter.segment_length, self.filter.segment_count_length);
-        let h2 = binary_fuse_filter::get_hash_from_hash(hash, 2, self.filter.segment_length, self.filter.segment_count_length);
-        let h3 = binary_fuse_filter::get_hash_from_hash(hash, 3, self.filter.segment_length, self.filter.segment_count_length);
+        let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, self.filter.segment_length, self.filter.segment_count_length);
 
         let query_indicator = self.calculate_query_indicator();
 

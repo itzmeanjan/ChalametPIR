@@ -189,7 +189,7 @@ impl Matrix {
                     let key = *hash_to_key.get(&hash)?;
                     let value = *db.get(key)?;
 
-                    let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
+                    let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
                     let found = reverse_h[i] as usize;
                     h012[0] = h0;
@@ -241,7 +241,7 @@ impl Matrix {
         let hashed_key = binary_fuse_filter::hash_of_key(key);
         let hash = binary_fuse_filter::mix256(&hashed_key, &filter.seed);
 
-        let (h0, h1, h2) = binary_fuse_filter::hash_batch(hash, filter.segment_length, filter.segment_count_length);
+        let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
         let recovered_row = (0..self.cols)
             .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols + elem_idx]))
@@ -298,11 +298,13 @@ impl Matrix {
                     let key = *hash_to_key.get(&hash)?;
                     let value = *db.get(key)?;
 
+                    let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
+
                     let found = reverse_h[i] as usize;
-                    h0123[0] = binary_fuse_filter::get_hash_from_hash(hash, 0, filter.segment_length, filter.segment_count_length);
-                    h0123[1] = binary_fuse_filter::get_hash_from_hash(hash, 1, filter.segment_length, filter.segment_count_length);
-                    h0123[2] = binary_fuse_filter::get_hash_from_hash(hash, 2, filter.segment_length, filter.segment_count_length);
-                    h0123[3] = binary_fuse_filter::get_hash_from_hash(hash, 3, filter.segment_length, filter.segment_count_length);
+                    h0123[0] = h0;
+                    h0123[1] = h1;
+                    h0123[2] = h2;
+                    h0123[3] = h3;
                     h0123[4] = h0123[0];
                     h0123[5] = h0123[1];
                     h0123[6] = h0123[2];
@@ -355,10 +357,7 @@ impl Matrix {
         let hashed_key = binary_fuse_filter::hash_of_key(key);
         let hash = binary_fuse_filter::mix256(&hashed_key, &filter.seed);
 
-        let h0 = binary_fuse_filter::get_hash_from_hash(hash, 0, filter.segment_length, filter.segment_count_length);
-        let h1 = binary_fuse_filter::get_hash_from_hash(hash, 1, filter.segment_length, filter.segment_count_length);
-        let h2 = binary_fuse_filter::get_hash_from_hash(hash, 2, filter.segment_length, filter.segment_count_length);
-        let h3 = binary_fuse_filter::get_hash_from_hash(hash, 3, filter.segment_length, filter.segment_count_length);
+        let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
         let recovered_row = (0..self.cols)
             .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols + elem_idx]))

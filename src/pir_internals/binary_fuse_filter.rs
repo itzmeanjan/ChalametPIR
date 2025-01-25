@@ -105,8 +105,7 @@ impl BinaryFuseFilter {
             for i in 0..db_size {
                 let hash = reverse_order[i];
 
-                let (h0, h1, h2) = hash_batch(hash, segment_length, segment_count_length);
-
+                let (h0, h1, h2) = hash_batch_for_3_wise_xor_filter(hash, segment_length, segment_count_length);
                 let (h0, h1, h2) = (h0 as usize, h1 as usize, h2 as usize);
 
                 t2count[h0] += 4;
@@ -152,7 +151,7 @@ impl BinaryFuseFilter {
                     reverse_order[stack_size] = hash;
                     stack_size += 1;
 
-                    let (h0, h1, h2) = hash_batch(hash, segment_length, segment_count_length);
+                    let (h0, h1, h2) = hash_batch_for_3_wise_xor_filter(hash, segment_length, segment_count_length);
 
                     h012[1] = h1;
                     h012[2] = h2;
@@ -302,15 +301,27 @@ impl BinaryFuseFilter {
             for i in 0..db_size {
                 let hash = reverse_order[i];
 
-                for idx in 0..4 {
-                    let hi = get_hash_from_hash(hash, idx, segment_length, segment_count_length) as usize;
+                let (h0, h1, h2, h3) = hash_batch_for_4_wise_xor_filter(hash, segment_length, segment_count_length);
+                let (h0, h1, h2, h3) = (h0 as usize, h1 as usize, h2 as usize, h3 as usize);
 
-                    t2count[hi] += 4;
-                    t2count[hi] ^= idx as u8;
-                    t2hash[hi] ^= hash;
+                t2count[h0] += 4;
+                t2hash[h0] ^= hash;
+                count_mask |= t2count[h0];
 
-                    count_mask |= t2count[hi];
-                }
+                t2count[h1] += 4;
+                t2count[h1] ^= 1 as u8;
+                t2hash[h1] ^= hash;
+                count_mask |= t2count[h1];
+
+                t2count[h2] += 4;
+                t2count[h2] ^= 2 as u8;
+                t2hash[h2] ^= hash;
+                count_mask |= t2count[h2];
+
+                t2count[h3] += 4;
+                t2count[h3] ^= 3 as u8;
+                t2hash[h3] ^= hash;
+                count_mask |= t2count[h3];
             }
 
             if count_mask >= 0x80 {
@@ -342,10 +353,12 @@ impl BinaryFuseFilter {
                     reverse_order[stack_size] = hash;
                     stack_size += 1;
 
-                    h0123[1] = get_hash_from_hash(hash, 1, segment_length, segment_count_length);
-                    h0123[2] = get_hash_from_hash(hash, 2, segment_length, segment_count_length);
-                    h0123[3] = get_hash_from_hash(hash, 3, segment_length, segment_count_length);
-                    h0123[4] = get_hash_from_hash(hash, 0, segment_length, segment_count_length);
+                    let (h0, h1, h2, h3) = hash_batch_for_4_wise_xor_filter(hash, segment_length, segment_count_length);
+
+                    h0123[1] = h1;
+                    h0123[2] = h2;
+                    h0123[3] = h3;
+                    h0123[4] = h0;
                     h0123[5] = h0123[1];
                     h0123[6] = h0123[2];
 
@@ -505,8 +518,8 @@ pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
 
-#[inline]
-pub const fn hash_batch(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32) {
+#[inline(always)]
+pub const fn hash_batch_for_3_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32) {
     let segment_length_mask = segment_length - 1;
     let hi = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
 
@@ -520,15 +533,19 @@ pub const fn hash_batch(hash: u64, segment_length: u32, segment_count_length: u3
     (h0, h1, h2)
 }
 
-#[inline]
-pub const fn get_hash_from_hash(hash: u64, index: usize, segment_length: u32, segment_count_length: u32) -> u32 {
-    let mut h = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
-    h += (index * segment_length as usize) as u64;
+#[inline(always)]
+pub const fn hash_batch_for_4_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32, u32) {
+    let segment_length_mask = segment_length - 1;
+    let hi = ((hash as u128 * segment_count_length as u128) >> 64) as u64;
 
-    if index > 0 {
-        let segment_length_mask = (segment_length - 1) as u64;
-        h ^= hash >> ((index - 1) * 16) & segment_length_mask;
-    }
+    let h0 = hi as u32;
+    let mut h1 = h0 + segment_length;
+    let mut h2 = h1 + segment_length;
+    let mut h3 = h2 + segment_length;
 
-    h as u32
+    h1 ^= ((hash >> 0) as u32) & segment_length_mask;
+    h2 ^= ((hash >> 16) as u32) & segment_length_mask;
+    h3 ^= ((hash >> 32) as u32) & segment_length_mask;
+
+    (h0, h1, h2, h3)
 }
