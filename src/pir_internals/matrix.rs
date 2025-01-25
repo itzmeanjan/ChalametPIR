@@ -415,16 +415,18 @@ impl Matrix {
 impl Index<(usize, usize)> for Matrix {
     type Output = u32;
 
+    #[inline]
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         let (ridx, cidx) = index;
-        &self.elems[ridx * self.cols + cidx]
+        unsafe { self.elems.get_unchecked(ridx * self.cols + cidx) }
     }
 }
 
 impl IndexMut<(usize, usize)> for Matrix {
+    #[inline]
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
         let (ridx, cidx) = index;
-        &mut self.elems[ridx * self.cols + cidx]
+        unsafe { self.elems.get_unchecked_mut(ridx * self.cols + cidx) }
     }
 }
 
