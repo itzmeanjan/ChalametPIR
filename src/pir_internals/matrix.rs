@@ -673,4 +673,38 @@ pub mod test {
 
         assert_eq!(matrix_a, matrix_b);
     }
+
+    #[test]
+    fn validate_bits_per_entry_for_3_wise_xor_filter() {
+        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
+        const ARITY: u32 = 3;
+        const NUM_KV_PAIRS: usize = 1_000_000;
+        const MAT_ELEM_BIT_LEN: usize = 10;
+        const EXPECTED_BPE: f64 = (MAT_ELEM_BIT_LEN as f64) * 1.13; // From section 4 of ia.cr/2024/092
+
+        let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
+        let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT).unwrap();
+
+        let computed_bpe = filter.bits_per_entry();
+        assert!(computed_bpe <= EXPECTED_BPE.ceil());
+    }
+
+    #[test]
+    fn validate_bits_per_entry_for_4_wise_xor_filter() {
+        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
+        const ARITY: u32 = 4;
+        const NUM_KV_PAIRS: usize = 1_000_000;
+        const MAT_ELEM_BIT_LEN: usize = 10;
+        const EXPECTED_BPE: f64 = (MAT_ELEM_BIT_LEN as f64) * 1.08; // From section 4 of ia.cr/2024/092
+
+        let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
+        let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT).unwrap();
+
+        let computed_bpe = filter.bits_per_entry();
+        assert!(computed_bpe <= EXPECTED_BPE.ceil());
+    }
 }
