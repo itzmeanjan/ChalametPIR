@@ -420,6 +420,11 @@ impl BinaryFuseFilter {
         ))
     }
 
+    #[cfg(test)]
+    pub fn bits_per_entry(&self) -> f64 {
+        ((self.num_fingerprints as f64) * (self.mat_elem_bit_len as f64)) / (self.filter_size as f64)
+    }
+
     pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
         bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
     }
