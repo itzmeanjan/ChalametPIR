@@ -1,3 +1,6 @@
-mod binary_fuse_filter;
-mod matrix;
-mod serialization;
+pub mod client;
+pub mod server;
+
+mod pir_internals;
+
+mod test_pir;
