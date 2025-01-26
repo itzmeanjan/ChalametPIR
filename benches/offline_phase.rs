@@ -1,4 +1,4 @@
-use chalamet_pir::server;
+use chalamet_pir::{client, server};
 use divan;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -41,8 +41,9 @@ const ARGS: &[DBConfig] = &[DBConfig {
     key_byte_len: 32,
     value_byte_len: 128,
 }];
+const ARITIES: [u32; 2] = [3, 4];
 
-#[divan::bench(args = ARGS, consts = [3,4], max_time = Duration::from_secs(300), skip_ext_time = true)]
+#[divan::bench(args = ARGS, consts = ARITIES, max_time = Duration::from_secs(300), skip_ext_time = true)]
 fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig) {
     let mut rng = ChaCha8Rng::from_entropy();
 
@@ -55,4 +56,18 @@ fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
     bencher
         .with_inputs(|| (kv_as_ref.clone(), seed_μ.clone()))
         .bench_values(|(kv, seed)| server::Server::setup::<ARITY>(divan::black_box(db_config.mat_elem_bit_len), divan::black_box(&seed), divan::black_box(kv)));
+}
+
+#[divan::bench(args = ARGS, consts = ARITIES, max_time = Duration::from_secs(300), skip_ext_time = true)]
+fn client_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig) {
+    let mut rng = ChaCha8Rng::from_entropy();
+
+    let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
+    let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
+    rng.fill_bytes(&mut seed_μ);
+
+    let (_, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(db_config.mat_elem_bit_len, &seed_μ, kv_as_ref).expect("Server setup failed");
+    bencher.bench(|| client::Client::setup(divan::black_box(&seed_μ), divan::black_box(&hint_bytes), divan::black_box(&filter_param_bytes)));
 }
