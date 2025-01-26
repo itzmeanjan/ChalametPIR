@@ -37,6 +37,17 @@ impl Matrix {
             })
         }
     }
+    pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Option<Matrix> {
+        if branch_opt_util::unlikely(!((rows > 0) && (cols > 0))) {
+            None
+        } else {
+            if branch_opt_util::unlikely(rows * cols != values.len()) {
+                None
+            } else {
+                Some(Matrix { rows, cols, elems: values })
+            }
+        }
+    }
 
     pub const fn get_num_rows(&self) -> usize {
         self.rows
