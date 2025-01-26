@@ -4,7 +4,7 @@ use crate::pir_internals::{
     matrix::Matrix,
     params::{LWE_DIMENSION, SERVER_SETUP_MAX_ATTEMPT_COUNT},
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, u32};
 
 pub struct Server {
     parsed_db_mat_d: Matrix,
@@ -14,6 +14,9 @@ impl Server {
     pub fn setup<const ARITY: u32>(mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
         let db_num_kv_pairs = db.len();
         if branch_opt_util::unlikely(!db_num_kv_pairs.is_power_of_two()) {
+            return None;
+        }
+        if branch_opt_util::unlikely(!Self::validate_lwe_params(mat_elem_bit_len, db_num_kv_pairs)) {
             return None;
         }
 
@@ -39,5 +42,12 @@ impl Server {
 
         let response_vector = (&query_vector * &self.parsed_db_mat_d)?;
         response_vector.to_bytes().ok()
+    }
+
+    fn validate_lwe_params(mat_elem_bit_len: usize, db_entry_count: usize) -> bool {
+        const Q: usize = u32::MAX as usize + 1;
+        let ρ = 1usize << mat_elem_bit_len;
+
+        Q >= (8 * ρ * ρ) * db_entry_count.isqrt()
     }
 }
