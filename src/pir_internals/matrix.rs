@@ -106,7 +106,7 @@ impl Matrix {
         }
     }
 
-    fn reduce(&self, rows: usize, cols: usize) -> Option<Matrix> {
+    pub fn reduce(&self, rows: usize, cols: usize) -> Option<Matrix> {
         if rows > self.rows || cols > self.cols {
             return None;
         }
