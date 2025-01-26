@@ -59,6 +59,11 @@ impl Matrix {
         self.elems.len()
     }
 
+    #[inline]
+    pub fn is_square(&self) -> bool {
+        return self.rows == self.cols;
+    }
+
     pub fn identity(rows: usize) -> Option<Matrix> {
         let mut mat = Matrix::new(rows, rows)?;
 
