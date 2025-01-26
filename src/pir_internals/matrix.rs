@@ -12,7 +12,7 @@ use sha3::{
 use std::{
     cmp::min,
     collections::HashMap,
-    ops::{Add, Index, IndexMut, Mul},
+    ops::{Add, Index, IndexMut, Mul, Sub},
 };
 
 #[cfg(test)]
@@ -545,6 +545,35 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
             .flatten()
             .for_each(|idx| {
                 res[idx] = self[idx].wrapping_add(rhs[idx]);
+            });
+
+        Some(res)
+    }
+}
+
+impl Sub for Matrix {
+    type Output = Option<Matrix>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        &self + &rhs
+    }
+}
+
+impl<'a, 'b> Sub<&'b Matrix> for &'a Matrix {
+    type Output = Option<Matrix>;
+
+    fn sub(self, rhs: &'b Matrix) -> Self::Output {
+        if branch_opt_util::unlikely(!(self.rows == rhs.rows && self.cols == rhs.cols)) {
+            return None;
+        }
+
+        let mut res = Matrix::new(self.rows, self.cols)?;
+
+        (0..self.rows)
+            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
+            .flatten()
+            .for_each(|idx| {
+                res[idx] = self[idx].wrapping_sub(rhs[idx]);
             });
 
         Some(res)
