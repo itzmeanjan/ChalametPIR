@@ -1,8 +1,9 @@
+pub use crate::pir_internals::params::SEED_BYTE_LEN;
 use crate::pir_internals::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     branch_opt_util,
     matrix::Matrix,
-    params::{LWE_DIMENSION, SEED_BYTE_LEN},
+    params::LWE_DIMENSION,
     serialization,
 };
 use std::collections::HashMap;
