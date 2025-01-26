@@ -20,9 +20,9 @@ use std::ops::Neg;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
-    rows: usize,
-    cols: usize,
-    elems: Vec<u32>,
+    pub rows: usize,
+    pub cols: usize,
+    pub elems: Vec<u32>,
 }
 
 impl Matrix {
@@ -69,7 +69,20 @@ impl Matrix {
         Some(mat)
     }
 
-    fn pad(&self, n: usize) -> Matrix {
+    pub fn transpose(&self) -> Option<Matrix> {
+        let mut res = Matrix::new(self.cols, self.rows)?;
+
+        (0..self.cols)
+            .map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
+            .flatten()
+            .for_each(|(ridx, cidx)| {
+                res[(ridx, cidx)] = self[(cidx, ridx)];
+            });
+
+        Some(res)
+    }
+
+    pub fn pad(&self, n: usize) -> Matrix {
         if n <= self.rows && n <= self.cols {
             self.clone()
         } else {
