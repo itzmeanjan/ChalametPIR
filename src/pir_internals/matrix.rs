@@ -693,23 +693,32 @@ pub mod test {
 
     #[test]
     fn matrix_multiplication_is_correct() {
-        const NUM_ROWS_IN_MATRIX: usize = 1024;
-        const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
+        const NUM_ATTEMPT_MATRIX_MULTIPLICATIONS: usize = 100;
+        const MIN_MATRIX_DIM: usize = 1;
+        const MAX_MATRIX_DIM: usize = 1024;
 
         let mut rng = ChaCha8Rng::from_entropy();
 
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
 
-        let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
-        let matrix_i = Matrix::identity(NUM_COLS_IN_MATRIX).expect("Identity matrix must be created");
-        let matrix_i_prime = Matrix::identity(NUM_ROWS_IN_MATRIX).expect("Identity matrix must be created");
+        let mut current_attempt_count = 0;
+        while current_attempt_count < NUM_ATTEMPT_MATRIX_MULTIPLICATIONS {
+            let num_rows = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            let num_cols = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
 
-        let matrix_ai = (&matrix_a * &matrix_i).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ai);
+            let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
+            let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
+            let matrix_i_prime = Matrix::identity(num_rows).expect("Identity matrix must be created");
 
-        let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ia);
+            let matrix_ai = (&matrix_a * &matrix_i).expect("Matrix multiplication must pass");
+            assert_eq!(matrix_a, matrix_ai);
+
+            let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
+            assert_eq!(matrix_a, matrix_ia);
+
+            current_attempt_count += 1;
+        }
     }
 
     #[test]
