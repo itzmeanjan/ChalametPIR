@@ -1,7 +1,4 @@
-use crate::pir_internals::{
-    binary_fuse_filter::{self},
-    branch_opt_util, serialization,
-};
+use crate::pir_internals::{binary_fuse_filter, branch_opt_util, serialization};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
