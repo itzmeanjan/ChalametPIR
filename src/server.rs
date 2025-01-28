@@ -7,7 +7,7 @@ use crate::pir_internals::{
 use std::{collections::HashMap, u32};
 
 pub struct Server {
-    parsed_db_mat_d: Matrix,
+    transposed_parsed_db_mat_d: Matrix,
 }
 
 impl Server {
@@ -29,18 +29,19 @@ impl Server {
 
         let hint_mat_m = (&pub_mat_a * &parsed_db_mat_d)?;
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
-        let filter_param_bytes = filter.to_bytes().ok()?;
+        let filter_param_bytes: Vec<u8> = filter.to_bytes().ok()?;
+        let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose()?;
 
-        Some((Server { parsed_db_mat_d }, hint_bytes, filter_param_bytes))
+        Some((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }
 
     pub fn respond(&self, query: &[u8]) -> Option<Vec<u8>> {
         let query_vector = Matrix::from_bytes(query).ok()?;
-        if branch_opt_util::unlikely(!(query_vector.get_num_rows() == 1 && query_vector.get_num_cols() == self.parsed_db_mat_d.get_num_rows())) {
+        if branch_opt_util::unlikely(!(query_vector.get_num_rows() == 1 && query_vector.get_num_cols() == self.transposed_parsed_db_mat_d.get_num_cols())) {
             return None;
         }
 
-        let response_vector = (&query_vector * &self.parsed_db_mat_d)?;
+        let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
         response_vector.to_bytes().ok()
     }
 
