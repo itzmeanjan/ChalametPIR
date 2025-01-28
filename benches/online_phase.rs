@@ -60,7 +60,7 @@ fn client_query<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
 
     bencher.with_inputs(|| client.clone()).bench_refs(|client| {
         let _ = divan::black_box(&mut *client).query(divan::black_box(key));
-        divan::black_box(&mut *client).discard_query(divan::black_box(key))
+        client.discard_query(key);
     });
 }
 
@@ -81,4 +81,31 @@ fn server_respond<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfi
     let query_bytes = client.query(key).unwrap();
 
     bencher.bench(|| divan::black_box(&server).respond(divan::black_box(&query_bytes)));
+}
+
+#[divan::bench(args = ARGS, consts = ARITIES, max_time = Duration::from_secs(300), skip_ext_time = true)]
+fn client_process_response<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig) {
+    let mut rng = ChaCha8Rng::from_entropy();
+
+    let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
+    let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
+    rng.fill_bytes(&mut seed_μ);
+
+    let (server, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(db_config.mat_elem_bit_len, &seed_μ, kv_as_ref.clone()).unwrap();
+    let mut client = client::Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).unwrap();
+
+    let (&key, _) = kv_as_ref.iter().last().unwrap();
+    let query_bytes = client.query(key).unwrap();
+
+    let query = client.discard_query(key).unwrap();
+    client.insert_query(key, query.clone());
+
+    let response_bytes = server.respond(&query_bytes).unwrap();
+
+    bencher.with_inputs(|| client.clone()).bench_refs(|client| {
+        let _ = divan::black_box(&mut *client).process_response(divan::black_box(key), divan::black_box(&response_bytes));
+        client.insert_query(key, query.clone());
+    });
 }
