@@ -104,40 +104,6 @@ impl Matrix {
         Some(res)
     }
 
-    pub fn pad(&self, n: usize) -> Matrix {
-        if n <= self.rows && n <= self.cols {
-            self.clone()
-        } else {
-            let mut values = Vec::<u32>::with_capacity(n * n);
-
-            for i in 0..self.rows {
-                (0..self.cols).for_each(|j| values.push(self[(i, j)]));
-                (self.cols..n).for_each(|_| values.push(0));
-            }
-
-            for _ in self.rows..n {
-                (0..n).for_each(|_| values.push(0));
-            }
-
-            Matrix::from_values(n, n, values).expect("Padding matrix must not fail")
-        }
-    }
-
-    pub fn reduce(&self, rows: usize, cols: usize) -> Option<Matrix> {
-        if rows > self.rows || cols > self.cols {
-            return None;
-        }
-
-        let mut values = Vec::<u32>::with_capacity(rows * cols);
-
-        (0..rows).for_each(|row_idx| {
-            let row_offset = row_idx * self.cols;
-            values.extend_from_slice(&self.elems[row_offset..(row_offset + cols)])
-        });
-
-        return Matrix::from_values(rows, cols, values);
-    }
-
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; 32]) -> Option<Matrix> {
         let mut hasher = Shake128::default();
         hasher.update(seed);
