@@ -520,16 +520,13 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
             return None;
         }
 
-        let mut res = Matrix::new(self.rows, self.cols)?;
+        let mut res_elems = vec![0u32; self.rows * rhs.cols];
 
-        (0..self.rows)
-            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
-            .flatten()
-            .for_each(|idx| {
-                res[idx] = self[idx].wrapping_add(rhs[idx]);
-            });
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            *v = unsafe { self.elems.get_unchecked(lin_idx).wrapping_add(*rhs.elems.get_unchecked(lin_idx)) };
+        });
 
-        Some(res)
+        Matrix::from_values(self.rows, rhs.cols, res_elems)
     }
 }
 
