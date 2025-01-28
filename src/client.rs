@@ -39,6 +39,18 @@ impl<'a> Client<'a> {
         })
     }
 
+    #[cfg(feature = "mutate_internal_client_state")]
+    #[inline(always)]
+    pub fn discard_query(&mut self, key: &'a [u8]) -> Option<Query> {
+        self.pending_queries.remove(key)
+    }
+
+    #[cfg(feature = "mutate_internal_client_state")]
+    #[inline(always)]
+    pub fn insert_query(&mut self, key: &'a [u8], query: Query) {
+        self.pending_queries.insert(key, query);
+    }
+
     pub fn query(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),

@@ -22,6 +22,10 @@ harness = false
 [[bench]]
 name = "online_phase"
 harness = false
+required-features = ["mutate_internal_client_state"]
+
+[features]
+mutate_internal_client_state = []
 
 [profile.optimized]
 inherits = "release"
