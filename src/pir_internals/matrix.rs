@@ -21,9 +21,9 @@ use std::ops::Neg;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
-    pub rows: usize,
-    pub cols: usize,
-    pub elems: Vec<u32>,
+    rows: usize,
+    cols: usize,
+    elems: Vec<u32>,
 }
 
 impl Matrix {
