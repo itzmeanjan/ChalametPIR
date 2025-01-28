@@ -4,6 +4,7 @@ use crate::pir_internals::{
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
@@ -62,6 +63,22 @@ impl Matrix {
     #[inline]
     pub fn is_square(&self) -> bool {
         return self.rows == self.cols;
+    }
+
+    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
+        let res_num_rows = self.rows;
+        let res_num_cols = rhs.rows;
+
+        let mut res_elems = vec![0u32; res_num_rows * res_num_cols];
+
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            let r_idx = 0;
+            let c_idx = lin_idx;
+
+            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
+        });
+
+        Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
     pub fn identity(rows: usize) -> Option<Matrix> {
