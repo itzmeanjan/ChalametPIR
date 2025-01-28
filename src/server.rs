@@ -6,6 +6,7 @@ use crate::pir_internals::{
 };
 use std::{collections::HashMap, u32};
 
+#[derive(Clone)]
 pub struct Server {
     transposed_parsed_db_mat_d: Matrix,
 }

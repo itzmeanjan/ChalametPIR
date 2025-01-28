@@ -8,10 +8,12 @@ use crate::pir_internals::{
 };
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Query {
     vec_c: Matrix,
 }
 
+#[derive(Clone)]
 pub struct Client<'a> {
     pub_mat_a: Matrix,
     hint_mat_m: Matrix,
