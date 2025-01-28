@@ -70,7 +70,7 @@ impl<'a> Client<'a> {
         let secret_vec_num_cols = LWE_DIMENSION;
         let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
 
-        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vector_num_cols = self.pub_mat_a.num_cols();
         let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
 
         let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
@@ -117,7 +117,7 @@ impl<'a> Client<'a> {
         let secret_vec_num_cols = LWE_DIMENSION;
         let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
 
-        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vector_num_cols = self.pub_mat_a.num_cols();
         let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
 
         let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
@@ -169,7 +169,7 @@ impl<'a> Client<'a> {
                 let secret_vec_c = &query.vec_c;
 
                 let response_vector = Matrix::from_bytes(response_bytes).ok()?;
-                if branch_opt_util::unlikely(!(response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols())) {
+                if branch_opt_util::unlikely(!(response_vector.num_rows() == 1 && response_vector.num_cols() == secret_vec_c.num_cols())) {
                     return None;
                 }
 
@@ -180,7 +180,7 @@ impl<'a> Client<'a> {
                 let hashed_key = binary_fuse_filter::hash_of_key(key);
                 let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
 
-                let recovered_row = (0..response_vector.get_num_cols())
+                let recovered_row = (0..response_vector.num_cols())
                     .map(|idx| {
                         let unscaled_res = response_vector[(0, idx)].wrapping_sub(secret_vec_c[(0, idx)]);
 

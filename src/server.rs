@@ -8,6 +8,7 @@ use std::{collections::HashMap, u32};
 
 #[derive(Clone)]
 pub struct Server {
+    /// This matrix is kept in transposed form to optimize memory access pattern in vector matrix multiplication of server-respond function.
     transposed_parsed_db_mat_d: Matrix,
 }
 
@@ -38,7 +39,7 @@ impl Server {
 
     pub fn respond(&self, query: &[u8]) -> Option<Vec<u8>> {
         let query_vector = Matrix::from_bytes(query).ok()?;
-        if branch_opt_util::unlikely(!(query_vector.get_num_rows() == 1 && query_vector.get_num_cols() == self.transposed_parsed_db_mat_d.get_num_cols())) {
+        if branch_opt_util::unlikely(!(query_vector.num_rows() == 1 && query_vector.num_cols() == self.transposed_parsed_db_mat_d.num_cols())) {
             return None;
         }
 

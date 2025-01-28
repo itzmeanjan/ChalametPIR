@@ -47,19 +47,17 @@ impl Matrix {
         }
     }
 
-    pub const fn get_num_rows(&self) -> usize {
+    #[inline(always)]
+    pub const fn num_rows(&self) -> usize {
         self.rows
     }
-    pub const fn get_num_cols(&self) -> usize {
+    #[inline(always)]
+    pub const fn num_cols(&self) -> usize {
         self.cols
     }
-    pub fn get_num_elems(&self) -> usize {
+    #[inline(always)]
+    pub fn num_elems(&self) -> usize {
         self.elems.len()
-    }
-
-    #[inline]
-    pub fn is_square(&self) -> bool {
-        return self.rows == self.cols;
     }
 
     pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
@@ -118,7 +116,7 @@ impl Matrix {
 
         while cur_elem_idx < num_elems {
             let fillable_num_elems_from_buf = (buffer.len() - buf_offset) / 4;
-            if fillable_num_elems_from_buf == 0 {
+            if branch_opt_util::unlikely(fillable_num_elems_from_buf == 0) {
                 reader.read(&mut buffer);
                 buf_offset = 0;
             }
@@ -441,8 +439,8 @@ impl Matrix {
         bincode::deserialize(bytes).map_or_else(
             |e| Err(format!("Failed to deserialize: {}", e)),
             |v: Matrix| {
-                let expected_num_elems = v.get_num_rows() * v.get_num_cols();
-                let actual_num_elems = v.get_num_elems();
+                let expected_num_elems = v.num_rows() * v.num_cols();
+                let actual_num_elems = v.num_elems();
 
                 if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
                     Ok(v)
