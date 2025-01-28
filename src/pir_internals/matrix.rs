@@ -1,9 +1,7 @@
-use crate::pir_internals::{
-    binary_fuse_filter::{self},
-    branch_opt_util, serialization,
-};
+use crate::pir_internals::{binary_fuse_filter, branch_opt_util, serialization};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use sha3::{
     digest::{ExtendableOutput, Update, XofReader},
@@ -37,15 +35,45 @@ impl Matrix {
             })
         }
     }
+    pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Option<Matrix> {
+        if branch_opt_util::unlikely(!((rows > 0) && (cols > 0))) {
+            None
+        } else {
+            if branch_opt_util::unlikely(rows * cols != values.len()) {
+                None
+            } else {
+                Some(Matrix { rows, cols, elems: values })
+            }
+        }
+    }
 
-    pub const fn get_num_rows(&self) -> usize {
+    #[inline(always)]
+    pub const fn num_rows(&self) -> usize {
         self.rows
     }
-    pub const fn get_num_cols(&self) -> usize {
+    #[inline(always)]
+    pub const fn num_cols(&self) -> usize {
         self.cols
     }
-    pub fn get_num_elems(&self) -> usize {
+    #[inline(always)]
+    pub fn num_elems(&self) -> usize {
         self.elems.len()
+    }
+
+    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
+        let res_num_rows = self.rows;
+        let res_num_cols = rhs.rows;
+
+        let mut res_elems = vec![0u32; res_num_rows * res_num_cols];
+
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            let r_idx = 0;
+            let c_idx = lin_idx;
+
+            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
+        });
+
+        Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
     pub fn identity(rows: usize) -> Option<Matrix> {
@@ -56,6 +84,19 @@ impl Matrix {
         });
 
         Some(mat)
+    }
+
+    pub fn transpose(&self) -> Option<Matrix> {
+        let mut res = Matrix::new(self.cols, self.rows)?;
+
+        (0..self.cols)
+            .map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
+            .flatten()
+            .for_each(|(ridx, cidx)| {
+                res[(ridx, cidx)] = self[(cidx, ridx)];
+            });
+
+        Some(res)
     }
 
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; 32]) -> Option<Matrix> {
@@ -75,7 +116,7 @@ impl Matrix {
 
         while cur_elem_idx < num_elems {
             let fillable_num_elems_from_buf = (buffer.len() - buf_offset) / 4;
-            if fillable_num_elems_from_buf == 0 {
+            if branch_opt_util::unlikely(fillable_num_elems_from_buf == 0) {
                 reader.read(&mut buffer);
                 buf_offset = 0;
             }
@@ -398,8 +439,8 @@ impl Matrix {
         bincode::deserialize(bytes).map_or_else(
             |e| Err(format!("Failed to deserialize: {}", e)),
             |v: Matrix| {
-                let expected_num_elems = v.get_num_rows() * v.get_num_cols();
-                let actual_num_elems = v.get_num_elems();
+                let expected_num_elems = v.num_rows() * v.num_cols();
+                let actual_num_elems = v.num_elems();
 
                 if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
                     Ok(v)
@@ -445,17 +486,16 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
             return None;
         }
 
-        let mut res = Matrix::new(self.rows, rhs.cols)?;
+        let mut res_elems = vec![0u32; self.rows * rhs.cols];
 
-        (0..self.rows).for_each(|ridx| {
-            (0..self.cols).for_each(|k| {
-                (0..rhs.cols).for_each(|cidx| {
-                    res[(ridx, cidx)] = res[(ridx, cidx)].wrapping_add(self[(ridx, k)].wrapping_mul(rhs[(k, cidx)]));
-                });
-            });
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            let r_idx = lin_idx / rhs.cols;
+            let c_idx = lin_idx - r_idx * rhs.cols;
+
+            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(k, c_idx)])));
         });
 
-        Some(res)
+        Matrix::from_values(self.rows, rhs.cols, res_elems)
     }
 }
 
@@ -475,16 +515,13 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
             return None;
         }
 
-        let mut res = Matrix::new(self.rows, self.cols)?;
+        let mut res_elems = vec![0u32; self.rows * rhs.cols];
 
-        (0..self.rows)
-            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
-            .flatten()
-            .for_each(|idx| {
-                res[idx] = self[idx].wrapping_add(rhs[idx]);
-            });
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            *v = unsafe { self.elems.get_unchecked(lin_idx).wrapping_add(*rhs.elems.get_unchecked(lin_idx)) };
+        });
 
-        Some(res)
+        Matrix::from_values(self.rows, rhs.cols, res_elems)
     }
 }
 
@@ -619,23 +656,32 @@ pub mod test {
 
     #[test]
     fn matrix_multiplication_is_correct() {
-        const NUM_ROWS_IN_MATRIX: usize = 1024;
-        const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
+        const NUM_ATTEMPT_MATRIX_MULTIPLICATIONS: usize = 100;
+        const MIN_MATRIX_DIM: usize = 1;
+        const MAX_MATRIX_DIM: usize = 1024;
 
         let mut rng = ChaCha8Rng::from_entropy();
 
         let mut seed = [0u8; 32];
         rng.fill_bytes(&mut seed);
 
-        let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
-        let matrix_i = Matrix::identity(NUM_COLS_IN_MATRIX).expect("Identity matrix must be created");
-        let matrix_i_prime = Matrix::identity(NUM_ROWS_IN_MATRIX).expect("Identity matrix must be created");
+        let mut current_attempt_count = 0;
+        while current_attempt_count < NUM_ATTEMPT_MATRIX_MULTIPLICATIONS {
+            let num_rows = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            let num_cols = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
 
-        let matrix_ai = (&matrix_a * &matrix_i).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ai);
+            let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
+            let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
+            let matrix_i_prime = Matrix::identity(num_rows).expect("Identity matrix must be created");
 
-        let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
-        assert_eq!(matrix_a, matrix_ia);
+            let matrix_ai = (&matrix_a * &matrix_i).expect("Matrix multiplication must pass");
+            assert_eq!(matrix_a, matrix_ai);
+
+            let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
+            assert_eq!(matrix_a, matrix_ia);
+
+            current_attempt_count += 1;
+        }
     }
 
     #[test]

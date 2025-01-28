@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Sha3_256};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct BinaryFuseFilter {
     pub seed: [u8; 32],
     pub arity: u32,

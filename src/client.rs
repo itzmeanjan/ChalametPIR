@@ -1,16 +1,19 @@
+pub use crate::pir_internals::params::SEED_BYTE_LEN;
 use crate::pir_internals::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     branch_opt_util,
     matrix::Matrix,
-    params::{LWE_DIMENSION, SEED_BYTE_LEN},
+    params::LWE_DIMENSION,
     serialization,
 };
 use std::collections::HashMap;
 
+#[derive(Clone)]
 pub struct Query {
     vec_c: Matrix,
 }
 
+#[derive(Clone)]
 pub struct Client<'a> {
     pub_mat_a: Matrix,
     hint_mat_m: Matrix,
@@ -36,6 +39,18 @@ impl<'a> Client<'a> {
         })
     }
 
+    #[cfg(feature = "mutate_internal_client_state")]
+    #[inline(always)]
+    pub fn discard_query(&mut self, key: &'a [u8]) -> Option<Query> {
+        self.pending_queries.remove(key)
+    }
+
+    #[cfg(feature = "mutate_internal_client_state")]
+    #[inline(always)]
+    pub fn insert_query(&mut self, key: &'a [u8], query: Query) {
+        self.pending_queries.insert(key, query);
+    }
+
     pub fn query(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),
@@ -55,7 +70,7 @@ impl<'a> Client<'a> {
         let secret_vec_num_cols = LWE_DIMENSION;
         let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
 
-        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vector_num_cols = self.pub_mat_a.num_cols();
         let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
 
         let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
@@ -102,7 +117,7 @@ impl<'a> Client<'a> {
         let secret_vec_num_cols = LWE_DIMENSION;
         let secret_vec_s = Matrix::sample_from_uniform_ternary_dist(1, secret_vec_num_cols)?;
 
-        let error_vector_num_cols = self.pub_mat_a.get_num_cols();
+        let error_vector_num_cols = self.pub_mat_a.num_cols();
         let error_vec_e = Matrix::sample_from_uniform_ternary_dist(1, error_vector_num_cols)?;
 
         let mut query_vec_b = ((&secret_vec_s * &self.pub_mat_a)? + error_vec_e)?;
@@ -154,7 +169,7 @@ impl<'a> Client<'a> {
                 let secret_vec_c = &query.vec_c;
 
                 let response_vector = Matrix::from_bytes(response_bytes).ok()?;
-                if branch_opt_util::unlikely(!(response_vector.get_num_rows() == 1 && response_vector.get_num_cols() == secret_vec_c.get_num_cols())) {
+                if branch_opt_util::unlikely(!(response_vector.num_rows() == 1 && response_vector.num_cols() == secret_vec_c.num_cols())) {
                     return None;
                 }
 
@@ -165,7 +180,7 @@ impl<'a> Client<'a> {
                 let hashed_key = binary_fuse_filter::hash_of_key(key);
                 let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
 
-                let recovered_row = (0..response_vector.get_num_cols())
+                let recovered_row = (0..response_vector.num_cols())
                     .map(|idx| {
                         let unscaled_res = response_vector[(0, idx)].wrapping_sub(secret_vec_c[(0, idx)]);
 
