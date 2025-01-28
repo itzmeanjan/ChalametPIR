@@ -525,17 +525,16 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
             return None;
         }
 
-        let mut res = Matrix::new(self.rows, rhs.cols)?;
+        let mut res_elems = vec![0u32; self.rows * rhs.cols];
 
-        (0..self.rows).for_each(|ridx| {
-            (0..self.cols).for_each(|k| {
-                (0..rhs.cols).for_each(|cidx| {
-                    res[(ridx, cidx)] = res[(ridx, cidx)].wrapping_add(self[(ridx, k)].wrapping_mul(rhs[(k, cidx)]));
-                });
-            });
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
+            let r_idx = lin_idx / rhs.cols;
+            let c_idx = lin_idx - r_idx * rhs.cols;
+
+            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(k, c_idx)])));
         });
 
-        Some(res)
+        Matrix::from_values(self.rows, rhs.cols, res_elems)
     }
 }
 
