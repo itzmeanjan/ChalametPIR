@@ -19,6 +19,10 @@ divan = "=0.1.17"
 name = "offline_phase"
 harness = false
 
+[[bench]]
+name = "online_phase"
+harness = false
+
 [profile.optimized]
 inherits = "release"
 codegen-units = 1
