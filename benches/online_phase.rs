@@ -54,18 +54,6 @@ const ARGS: &[DBConfig] = &[
         key_byte_len: 32,
         value_byte_len: 1024,
     },
-    DBConfig {
-        db_entry_count: 1usize << 22,
-        mat_elem_bit_len: 9,
-        key_byte_len: 32,
-        value_byte_len: 1024,
-    },
-    DBConfig {
-        db_entry_count: 1usize << 24,
-        mat_elem_bit_len: 8,
-        key_byte_len: 32,
-        value_byte_len: 1024,
-    },
 ];
 const ARITIES: [u32; 2] = [3, 4];
 
