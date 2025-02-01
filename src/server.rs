@@ -32,7 +32,7 @@ impl Server {
         let hint_mat_m = (&pub_mat_a * &parsed_db_mat_d)?;
         let hint_bytes = hint_mat_m.to_bytes().ok()?;
         let filter_param_bytes: Vec<u8> = filter.to_bytes().ok()?;
-        let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose()?;
+        let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose();
 
         Some((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }

@@ -90,8 +90,8 @@ impl Matrix {
         Some(mat)
     }
 
-    pub fn transpose(&self) -> Option<Matrix> {
-        let mut res = Matrix::new(self.cols, self.rows)?;
+    pub fn transpose(&self) -> Matrix {
+        let mut res = Matrix::new(self.cols, self.rows).unwrap();
 
         (0..self.cols)
             .map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
@@ -100,7 +100,7 @@ impl Matrix {
                 res[(ridx, cidx)] = self[(cidx, ridx)];
             });
 
-        Some(res)
+        res
     }
 
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; 32]) -> Option<Matrix> {
