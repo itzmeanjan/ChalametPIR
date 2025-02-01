@@ -61,6 +61,10 @@ impl Matrix {
     }
 
     pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
+        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
+            return None;
+        }
+
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
 

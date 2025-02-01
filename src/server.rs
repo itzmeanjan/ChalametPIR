@@ -39,11 +39,8 @@ impl Server {
 
     pub fn respond(&self, query: &[u8]) -> Option<Vec<u8>> {
         let query_vector = Matrix::from_bytes(query).ok()?;
-        if branch_opt_util::unlikely(!(query_vector.num_rows() == 1 && query_vector.num_cols() == self.transposed_parsed_db_mat_d.num_cols())) {
-            return None;
-        }
-
         let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
+
         response_vector.to_bytes().ok()
     }
 
