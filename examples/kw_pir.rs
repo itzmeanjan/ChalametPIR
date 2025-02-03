@@ -1,4 +1,7 @@
-use chalamet_pir::{client::Client, server::Server};
+use chalamet_pir::{
+    client::Client,
+    server::{self, Server},
+};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -38,6 +41,19 @@ fn make_toy_kv_db(rng: &mut ChaCha8Rng) -> HashMap<usize, char> {
         .collect::<HashMap<usize, char>>()
 }
 
+fn format_bytes(bytes: usize) -> String {
+    let suffixes = ["B", "KB", "MB", "GB"];
+    let mut index = 0;
+    let mut size = bytes as f64;
+
+    while size >= 1024.0 && index < 3 {
+        size /= 1024.0;
+        index += 1;
+    }
+
+    format!("{:.1}{}", size, suffixes[index])
+}
+
 fn main() {
     const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 3;
@@ -55,12 +71,26 @@ fn main() {
         .map(|(k, v)| (k.as_slice(), v.as_slice()))
         .collect::<HashMap<&[u8], &[u8]>>();
 
+    let key_byte_len = std::mem::size_of_val(kv_db.keys().next().unwrap());
+    let value_byte_len = std::mem::size_of_val(kv_db.values().next().unwrap());
+
+    println!("ChalametPIR:");
+    println!("Number of entries in Key-Value Database   : {}", kv_db.len());
+    println!("Size of each key                          : {}", format_bytes(key_byte_len));
+    println!("Size of each value                        : {}", format_bytes(value_byte_len));
+    println!("Arity of Binary Fuse Filter               : {}", ARITY);
+    println!("Encoded DB matrix element bit length      : {}", MAT_ELEM_BIT_LEN);
+
     // Sample seed for producing public LWE matrix A.
-    let mut seed_μ = [0u8; 32];
+    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     // Setup PIR server, for given KV database.
     let (server_handle, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+
+    println!("Seed size                                 : {}", format_bytes(seed_μ.len()));
+    println!("Hint size                                 : {}", format_bytes(hint_bytes.len()));
+    println!("Filter parameters size                    : {}", format_bytes(filter_param_bytes.len()));
 
     // Setup a PIR client, given seed, hint bytes and filter param bytes, received from server.
     let mut client_handle = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
@@ -76,9 +106,17 @@ fn main() {
 
         let key_as_bytes = random_key.to_le_bytes();
         if let Some(query) = client_handle.query(&key_as_bytes.as_slice()) {
+            if num_keys_quried == 0 {
+                println!("Query size                                : {}", format_bytes(query.len()));
+            }
+
             let respond_begin = Instant::now();
             if let Some(response) = server_handle.respond(query.as_slice()) {
                 let respond_end = Instant::now();
+
+                if num_keys_quried == 0 {
+                    println!("Response size                             : {}\n", format_bytes(response.len()));
+                }
 
                 if let Some(received_value_bytes) = client_handle.process_response(key_as_bytes.as_slice(), response.as_slice()) {
                     assert!(is_random_key_in_db);
