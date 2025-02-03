@@ -30,3 +30,6 @@ jobs:
 
       - name: Build and Test on ${{ matrix.os }}
         run: cargo test --profile test-release
+
+      - name: Run Example on ${{ matrix.os }}
+        run: cargo run --example kw_pir --profile optimized
