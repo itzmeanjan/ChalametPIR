@@ -1,9 +1,3 @@
-// This program demonstrates a simple Key-Value Private Information Retrieval (PIR) scheme.
-// It uses the `chalamet-pir` crate to perform the PIR operations.
-// The program generates a toy Key-Value database, sets up a PIR server and client,
-// and then performs queries for each key in the database, measuring response time.
-// The results are printed to the console, indicating success or failure for each query.
-
 use chalamet_pir::{client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -50,7 +44,7 @@ fn main() {
 
     let mut rng = ChaCha8Rng::from_entropy();
 
-    // Make sample Key-Value database.
+    // Make a sample Key-Value database.
     let kv_db = make_toy_kv_db(&mut rng);
     let kv_db_as_bytes = kv_db
         .iter()
@@ -71,31 +65,42 @@ fn main() {
     // Setup a PIR client, given seed, hint bytes and filter param bytes, received from server.
     let mut client_handle = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
-    for (key, expected_value) in kv_db {
-        let key_as_bytes = key.to_le_bytes();
+    // Sample n -many random valid/ invalid keys and attempt to query them using PIR scheme.
+    // See if valid keys can be retrieved successfully. And absent keys can't be retrieved.
+
+    let total_num_keys_to_be_queried = 20;
+    let mut num_keys_quried = 0;
+    while num_keys_quried < total_num_keys_to_be_queried {
+        let random_key = rng.gen_range(0..kv_db.len() * 2);
+        let is_random_key_in_db = kv_db.contains_key(&random_key);
+
+        let key_as_bytes = random_key.to_le_bytes();
         if let Some(query) = client_handle.query(&key_as_bytes.as_slice()) {
             let respond_begin = Instant::now();
             if let Some(response) = server_handle.respond(query.as_slice()) {
                 let respond_end = Instant::now();
 
                 if let Some(received_value_bytes) = client_handle.process_response(key_as_bytes.as_slice(), response.as_slice()) {
+                    assert!(is_random_key_in_db);
+                    let &expected_value = kv_db.get(&random_key).expect("Key must be present in the DB!");
+
                     let received_value = String::from_utf8_lossy(received_value_bytes.as_slice()).chars().next().unwrap();
                     if received_value == expected_value {
-                        println!("✅ {} => {}, in {:?}", key, received_value, (respond_end - respond_begin));
+                        println!("✅ '{}' maps to '{}', in {:?}", random_key, received_value, (respond_end - respond_begin));
                     } else {
-                        println!(
-                            "⚠️⚠️⚠️ Received value '{}' does not match expected value '{}' for key '{}'",
-                            received_value, expected_value, key
-                        );
+                        println!("🚫 Didn't receive expected value for key '{}'!", random_key);
                     }
                 } else {
-                    println!("⛔ Failed to decode the response for queried key '{}'", key);
+                    assert!(!is_random_key_in_db);
+                    println!("⚠️ Random key '{}' is not present in DB", random_key);
                 }
             } else {
-                println!("⛔ Failed to receive a response for queried key '{}'", key);
+                println!("⛔ Failed to receive a response for queried key '{}'", random_key);
             }
         } else {
-            println!("⛔ Failed to prepare a query for key '{}'", key);
+            println!("⛔ Failed to prepare a query for key '{}'", random_key);
         }
+
+        num_keys_quried += 1;
     }
 }
