@@ -14,14 +14,14 @@ pub struct Query {
 }
 
 #[derive(Clone)]
-pub struct Client<'a> {
+pub struct Client {
     pub_mat_a: Matrix,
     hint_mat_m: Matrix,
     filter: BinaryFuseFilter,
-    pending_queries: HashMap<&'a [u8], Query>,
+    pending_queries: HashMap<Vec<u8>, Query>,
 }
 
-impl<'a> Client<'a> {
+impl Client {
     /// Sets up a new keyword *P*rivate *I*nformation *R*etrieval client instance.
     ///
     /// This function initializes a client object with the necessary parameters for performing private information retrieval (PIR) queries.
@@ -32,7 +32,7 @@ impl<'a> Client<'a> {
     /// * `filter_param_bytes`: A byte array containing the parameters for the underlying binary fuse filter in-use.
     ///
     /// Errors can occur if the `BinaryFuseFilter` cannot be constructed from the provided bytes, or if matrix generation fails.  These errors will result in `None` being returned.
-    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Option<Client<'a>> {
+    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Option<Client> {
         let filter = BinaryFuseFilter::from_bytes(filter_param_bytes).ok()?;
 
         let pub_mat_a_num_rows = LWE_DIMENSION;
@@ -77,7 +77,7 @@ impl<'a> Client<'a> {
     /// # Returns
     ///
     /// `Some(Vec<u8>)` containing the query bytes if successful, `None` otherwise. Failure can occur due to integer addition overflow during query generation, or if a query for the same key already exists.
-    pub fn query(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
+    pub fn query(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),
             4 => self.query_for_4_wise_xor_filter(key),
@@ -88,7 +88,7 @@ impl<'a> Client<'a> {
         }
     }
 
-    fn query_for_3_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
+    fn query_for_3_wise_xor_filter(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
             return None;
         }
@@ -130,12 +130,12 @@ impl<'a> Client<'a> {
         }
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
-        self.pending_queries.insert(key, Query { vec_c: secret_vec_c });
+        self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
         Some(query_bytes)
     }
 
-    fn query_for_4_wise_xor_filter(&mut self, key: &'a [u8]) -> Option<Vec<u8>> {
+    fn query_for_4_wise_xor_filter(&mut self, key: &[u8]) -> Option<Vec<u8>> {
         if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
             return None;
         }
@@ -184,7 +184,7 @@ impl<'a> Client<'a> {
         }
 
         let query_bytes = query_vec_b.to_bytes().ok()?;
-        self.pending_queries.insert(key, Query { vec_c: secret_vec_c });
+        self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
         Some(query_bytes)
     }
@@ -201,7 +201,7 @@ impl<'a> Client<'a> {
     /// # Returns
     ///
     /// `Some(Vec<u8>)` containing the retrieved data if successful, `None` otherwise. Failure can occur if the response vector has an unexpected dimension, if decoding fails, or if the query is not found in `pending_queries`.
-    pub fn process_response(&mut self, key: &'a [u8], response_bytes: &[u8]) -> Option<Vec<u8>> {
+    pub fn process_response(&mut self, key: &[u8], response_bytes: &[u8]) -> Option<Vec<u8>> {
         match self.pending_queries.get(key) {
             Some(query) => {
                 let secret_vec_c = &query.vec_c;
