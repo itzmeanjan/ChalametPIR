@@ -82,6 +82,7 @@ impl Server {
         response_vector.to_bytes().ok()
     }
 
+    /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.
     fn validate_lwe_params(mat_elem_bit_len: usize, db_entry_count: usize) -> bool {
         const Q: usize = u32::MAX as usize + 1;
         let ρ = 1usize << mat_elem_bit_len;
