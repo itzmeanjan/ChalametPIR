@@ -17,7 +17,7 @@ The protocol has two participants:
 
 **Server:**
 * **`setup`:** Initializes the server with a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, compile-time configurable). Returns serialized representations of the hint matrix and filter parameters. This phase can be completed in offline and it's completely client agnostic.
-* **`respond`:** Processes a client's query and returns an encrypted response using optimized matrix operations on the encoded database.
+* **`respond`:** Processes a client's query and returns an encrypted response vector.
 
 **Client:**
 * **`setup`:** Initializes the client using the serialized hint matrix and filter parameters received from the server.
@@ -45,14 +45,14 @@ Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` serve
 `client_process_response` | 11.69 microseconds | 16.82 microseconds | 0.7
 
 > ![NOTE]
-> In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter.
+> In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
 
 So, the median bandwidth of the `server_respond` algorithm, which needs to traverse through the whole processed database, is
 - (a) For `aarch64` server: 53.82 GB/s
 - (b) For `x86_64` server: 30.12 GB/s
 
 ## Prerequisites
-Rust stable toolchain; see https://rustup.rs for installation guide.
+Rust stable toolchain; see https://rustup.rs for installation guide. MSRV for this crate is 1.84.0.
 
 ```bash
 # While developing this library, I was using
@@ -63,7 +63,7 @@ rustc 1.84.1 (e71f9a9a9 2025-01-27)
 ## Testing
 The `chalamet_pir` library includes comprehensive tests to ensure functional correctness.
 
-- **Property -based Tests:** Verify individual components: matrix operations (multiplication, addition, identity matrix checks, error handling), Binary Fuse Filter construction (3-wise and 4-wise XOR, including bits-per-entry (BPE) validation), and serialization/deserialization of `Matrix` and `BinaryFuseFilter`.
+- **Property -based Tests:** Verify individual components: matrix operations (multiplication, addition), Binary Fuse Filter construction (3-wise and 4-wise XOR, including bits-per-entry (BPE) validation), and serialization/deserialization of `Matrix` and `BinaryFuseFilter`.
 - **Integration Tests:** Cover end-to-end PIR protocol functionality: key-value database encoding/decoding (parameterized by database size, key/value lengths, and filter arity), and client-server interaction to verify correct value retrieval without key disclosure (tested with both 3-wise and 4-wise XOR filters).
 
 To run the tests, go to the project's root directory and issue:
@@ -86,7 +86,7 @@ cargo bench --all-features --profile optimized # For benchmarking the online pha
 ```
 
 > [!WARNING]
-> When benchmarking make sure you've disabled CPU frequency scaling, otherwise numbers you see can be pretty misleading. I find https://github.com/google/benchmark/blob/b40db869/docs/reducing_variance.md helpful.
+> When benchmarking make sure you've disabled CPU frequency scaling, otherwise numbers you see can be misleading. I find https://github.com/google/benchmark/blob/b40db869/docs/reducing_variance.md helpful.
 
 ### On AWS EC2 Instance `m8g.8xlarge` (aarch64)
 ![offline-phase](./bench-results/offline.m8g.8xlarge.png)
@@ -103,17 +103,18 @@ cargo bench --all-features --profile optimized # For benchmarking the online pha
 > More about AWS EC2 instances @ https://aws.amazon.com/ec2/instance-types.
 
 ## Usage
-First, add this crate as a dependency in your Cargo.toml file.
+First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "0.1"
+chalamet_pir = "=0.1.0"
 ```
 
-Then, in your Rust code:
+Then, let's code a very simple keyword PIR scheme:
 
 ```rust
 use chalamet_pir::{client::Client, server::Server};
+use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
 
@@ -130,9 +131,8 @@ fn main() {
 
     let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(10, &seed_μ, db.clone()).expect("Server setup failed");
 
-
     // Client setup (offline phase)
-    let client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
+    let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
     // Client query (online phase)
     let key = b"banana";
@@ -144,7 +144,7 @@ fn main() {
 
         // Client processes the response (online phase)
         if let Some(value) = client.process_response(key, &response) {
-            println!("Retrieved value: {:?}", value); // Should print b"yellow"
+            println!("Retrieved value: '{}'", String::from_utf8_lossy(&value)); // Should print "yellow"
         } else {
             println!("Failed to retrieve value.");
         }
@@ -154,7 +154,7 @@ fn main() {
 }
 ```
 
-The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used,which affects size of hint/ query/ response. Choose a value suitable for your dataset size. Also, the `mat_elem_bit_len` parameter impacts the security level and performance of the PIR scheme. Adjust it accordingly.
+The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used,which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. Also, the `mat_elem_bit_len` parameter impacts the correctness and performance of the PIR scheme. It depends on the number of entries in the database. I advise you to see eq. 8 in section 5.1 of FrodoPIR paper @ https://ia.cr/2022/981. For suggested values of `mat_elem_bit_len` for different database sizes, I advise you to have a look at table 5 in section 5.2 of FrodoPIR paper. Interpret $ρ = 2^{mat\_elem\_bit\_len}$.
 
 I maintain one example [program](./examples/kw_pir.rs) which demonstrates usage of the ChalametPIR API.
 
@@ -163,6 +163,7 @@ cargo run --example kw_pir --profile optimized
 ```
 
 ```bash
+# Using 3-wise XOR Binary Fuse Filter
 ChalametPIR:
 Number of entries in Key-Value Database   : 65536
 Size of each key                          : 8.0B
@@ -195,4 +196,40 @@ Response size                             : 144.0B
 ✅ '29361' maps to 'T', in 530.348µs
 ✅ '33143' maps to 'W', in 355.938µs
 ⚠️ Random key '87591' is not present in DB
+
+# --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
+
+# Using 4-wise XOR Binary Fuse Filter
+ChalametPIR:
+Number of entries in Key-Value Database   : 65536
+Size of each key                          : 8.0B
+Size of each value                        : 4.0B
+Arity of Binary Fuse Filter               : 4
+Encoded DB matrix element bit length      : 10
+Seed size                                 : 32.0B
+Hint size                                 : 207.9KB
+Filter parameters size                    : 68.0B
+Query size                                : 292.0KB
+Response size                             : 144.0B
+
+✅ '9445' maps to 'x', in 416.617µs
+⚠️ Random key '120774' is not present in DB
+⚠️ Random key '81310' is not present in DB
+✅ '29502' maps to 'S', in 292.054µs
+✅ '58360' maps to 'c', in 237.823µs
+⚠️ Random key '74424' is not present in DB
+⚠️ Random key '96217' is not present in DB
+✅ '60430' maps to 'X', in 380.674µs
+✅ '47703' maps to 'X', in 252.425µs
+✅ '13076' maps to 'V', in 312.977µs
+✅ '53385' maps to 'o', in 255.729µs
+⚠️ Random key '90470' is not present in DB
+✅ '46869' maps to 'h', in 275.5µs
+⚠️ Random key '127543' is not present in DB
+⚠️ Random key '105528' is not present in DB
+⚠️ Random key '76357' is not present in DB
+✅ '56523' maps to 'a', in 254.195µs
+✅ '11499' maps to 'K', in 286.938µs
+✅ '44878' maps to 'J', in 258.759µs
+⚠️ Random key '74422' is not present in DB
 ```
