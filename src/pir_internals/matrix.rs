@@ -1,4 +1,8 @@
-use crate::pir_internals::{binary_fuse_filter, branch_opt_util, serialization};
+use crate::pir_internals::{
+    binary_fuse_filter, branch_opt_util,
+    params::{HASHED_KEY_BYTE_LEN, SEED_BYTE_LEN},
+    serialization,
+};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
@@ -24,26 +28,50 @@ pub struct Matrix {
 }
 
 impl Matrix {
+    /// Creates a new matrix with the given number of rows and columns, s.t. all elements are zero-initialized.
+    ///
+    /// # Arguments
+    ///
+    /// * `rows` - The number of rows in the matrix.
+    /// * `cols` - The number of columns in the matrix.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
+    /// * `None` - If either rows or cols is zero or less.
     pub fn new(rows: usize, cols: usize) -> Option<Matrix> {
-        if branch_opt_util::unlikely(!((rows > 0) && (cols > 0))) {
-            None
-        } else {
+        if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             Some(Matrix {
                 rows,
                 cols,
                 elems: vec![0; rows * cols],
             })
+        } else {
+            None
         }
     }
+
+    /// Creates a new matrix with the given number of rows and columns, s.t. elements are initialized with the given values.
+    ///
+    /// # Arguments
+    ///
+    /// * `rows` - The number of rows in the matrix.
+    /// * `cols` - The number of columns in the matrix.
+    /// * `values` - The values to initialize the matrix with.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
+    /// * `None` - If either rows or cols is zero or less, or if the number of values does not match the number of required elements.
     pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Option<Matrix> {
-        if branch_opt_util::unlikely(!((rows > 0) && (cols > 0))) {
-            None
-        } else {
-            if branch_opt_util::unlikely(rows * cols != values.len()) {
-                None
-            } else {
+        if branch_opt_util::likely((rows > 0) && (cols > 0)) {
+            if branch_opt_util::likely(rows * cols == values.len()) {
                 Some(Matrix { rows, cols, elems: values })
+            } else {
+                None
             }
+        } else {
+            None
         }
     }
 
@@ -60,7 +88,21 @@ impl Matrix {
         self.elems.len()
     }
 
+    /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The matrix to multiply with (MxN).
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - The resulting matrix (1xM) if the input is valid.
+    /// * `None` - If the input is invalid (self is not a row vector, or the dimensions are incompatible).
     pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
+        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
+            return None;
+        }
+
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
 
@@ -76,6 +118,16 @@ impl Matrix {
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
+    /// Creates a new identity matrix with the given number of rows and columns.
+    ///
+    /// # Arguments
+    ///
+    /// * `rows` - The number of rows and columns in the identity matrix.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - A new identity matrix if the input is valid (rows is positive).
+    /// * `None` - If rows is zero or less.
     pub fn identity(rows: usize) -> Option<Matrix> {
         let mut mat = Matrix::new(rows, rows)?;
 
@@ -86,8 +138,13 @@ impl Matrix {
         Some(mat)
     }
 
-    pub fn transpose(&self) -> Option<Matrix> {
-        let mut res = Matrix::new(self.cols, self.rows)?;
+    /// Transposes the matrix.
+    ///
+    /// # Returns
+    ///
+    /// * `Matrix` - The transposed matrix.
+    pub fn transpose(&self) -> Matrix {
+        let mut res = Matrix::new(self.cols, self.rows).unwrap();
 
         (0..self.cols)
             .map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
@@ -96,10 +153,22 @@ impl Matrix {
                 res[(ridx, cidx)] = self[(cidx, ridx)];
             });
 
-        Some(res)
+        res
     }
 
-    pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; 32]) -> Option<Matrix> {
+    /// Generates a matrix with the given dimensions from a SEED_BYTE_LEN -byte seed using SHAKE128 xof.
+    ///
+    /// # Arguments
+    ///
+    /// * `rows` - The number of rows in the matrix.
+    /// * `cols` - The number of columns in the matrix.
+    /// * `seed` - The SEED_BYTE_LEN -byte seed to use for generation.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
+    /// * `None` - If either rows or cols is zero or less.
+    pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Option<Matrix> {
         let mut hasher = Shake128::default();
         hasher.update(seed);
 
@@ -138,6 +207,18 @@ impl Matrix {
         Some(mat)
     }
 
+    /// Generates a row/ column vector with the given dimensions, where each element is sampled from a uniform ternary distribution {0, 1, -1}.
+    /// Note, -1 is represented as u32::MAX.
+    ///
+    /// # Arguments
+    ///
+    /// * `rows` - The number of rows in the matrix.
+    /// * `cols` - The number of columns in the matrix.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Matrix)` - A new row/ column vector if the input is valid (rows or cols is 1).
+    /// * `None` - If neither rows nor cols is 1.
     pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Option<Matrix> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return None;
@@ -174,6 +255,19 @@ impl Matrix {
         Some(vec)
     }
 
+    /// Encodes a key-value database, as a matrix, using many column-wise Binary Fuse Filters s.t. each binary fuse filter column
+    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
+    ///
+    /// # Returns
+    ///
+    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
+    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
     pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -191,6 +285,17 @@ impl Matrix {
         }
     }
 
+    /// Recovers the value associated with the given key from the encoded key-value database matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key to search for.
+    /// * `filter` - The Binary Fuse Filter used to encode the key-value database.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Vec<u8>)` - The value associated with the key if found.
+    /// * `None` - If the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         const { assert!(ARITY == 3 || ARITY == 4) }
@@ -205,6 +310,19 @@ impl Matrix {
         }
     }
 
+    /// Encodes a key-value database, as a matrix, using 3-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
+    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
+    ///
+    /// # Returns
+    ///
+    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
+    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
     fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -275,6 +393,17 @@ impl Matrix {
         }
     }
 
+    /// Recovers the value associated with the given key from the encoded key-value database matrix using a 3-wise XOR filter.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key to search for.
+    /// * `filter` - The 3-wise XOR Binary Fuse Filter used to encode the key-value database.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Vec<u8>)` - The value associated with the key if found.
+    /// * `None` - If the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
@@ -293,7 +422,7 @@ impl Matrix {
 
         match serialization::decode_kv_from_row(&recovered_row, filter.mat_elem_bit_len) {
             Some(mut decoded_kv) => {
-                let mut hashed_key_as_bytes = [0u8; 32];
+                let mut hashed_key_as_bytes = [0u8; HASHED_KEY_BYTE_LEN];
 
                 hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
                 hashed_key_as_bytes[8..16].copy_from_slice(&hashed_key[1].to_le_bytes());
@@ -314,6 +443,19 @@ impl Matrix {
         }
     }
 
+    /// Encodes a key-value database, as a matrix, using 4-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
+    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
+    ///
+    /// # Returns
+    ///
+    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
+    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
     fn from_kv_database_with_4_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -321,7 +463,7 @@ impl Matrix {
     ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
         match binary_fuse_filter::BinaryFuseFilter::construct_4_wise_xor_filter(&db, mat_elem_bit_len, max_attempt_count) {
             Some((filter, reverse_order, reverse_h, hash_to_key)) => {
-                const HASHED_KEY_BIT_LEN: usize = 256;
+                const HASHED_KEY_BIT_LEN: usize = HASHED_KEY_BYTE_LEN * 8;
 
                 let max_value_byte_len = db.values().map(|v| v.len()).max()?;
                 let max_value_bit_len = max_value_byte_len * 8;
@@ -391,6 +533,17 @@ impl Matrix {
         }
     }
 
+    /// Recovers the value associated with the given key from the encoded key-value database matrix using a 4-wise XOR filter.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The key to search for.
+    /// * `filter` - The 4-wise XOR Binary Fuse Filter used to encode the key-value database.
+    ///
+    /// # Returns
+    ///
+    /// * `Some(Vec<u8>)` - The value associated with the key if found.
+    /// * `None` - If the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
@@ -410,7 +563,7 @@ impl Matrix {
 
         match serialization::decode_kv_from_row(&recovered_row, filter.mat_elem_bit_len) {
             Some(mut decoded_kv) => {
-                let mut hashed_key_as_bytes = [0u8; 32];
+                let mut hashed_key_as_bytes = [0u8; HASHED_KEY_BYTE_LEN];
 
                 hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
                 hashed_key_as_bytes[8..16].copy_from_slice(&hashed_key[1].to_le_bytes());
@@ -455,7 +608,7 @@ impl Matrix {
 impl Index<(usize, usize)> for Matrix {
     type Output = u32;
 
-    #[inline]
+    #[inline(always)]
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         let (ridx, cidx) = index;
         unsafe { self.elems.get_unchecked(ridx * self.cols + cidx) }
@@ -463,7 +616,7 @@ impl Index<(usize, usize)> for Matrix {
 }
 
 impl IndexMut<(usize, usize)> for Matrix {
-    #[inline]
+    #[inline(always)]
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
         let (ridx, cidx) = index;
         unsafe { self.elems.get_unchecked_mut(ridx * self.cols + cidx) }
@@ -473,6 +626,7 @@ impl IndexMut<(usize, usize)> for Matrix {
 impl Mul for Matrix {
     type Output = Option<Matrix>;
 
+    #[inline(always)]
     fn mul(self, rhs: Self) -> Self::Output {
         &self * &rhs
     }
@@ -502,6 +656,7 @@ impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
 impl Add for Matrix {
     type Output = Option<Matrix>;
 
+    #[inline(always)]
     fn add(self, rhs: Self) -> Self::Output {
         &self + &rhs
     }
@@ -529,6 +684,7 @@ impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
 impl Neg for Matrix {
     type Output = Option<Matrix>;
 
+    #[inline(always)]
     fn neg(self) -> Self::Output {
         -(&self)
     }
@@ -541,12 +697,9 @@ impl<'a> Neg for &'a Matrix {
     fn neg(self) -> Self::Output {
         let mut res = Matrix::new(self.rows, self.cols)?;
 
-        (0..self.rows)
-            .map(|ridx| (0..self.cols).map(move |cidx| (ridx, cidx)))
-            .flatten()
-            .for_each(|idx| {
-                res[idx] = self[idx].wrapping_neg();
-            });
+        (0..self.num_elems()).for_each(|idx| {
+            res.elems[idx] = self.elems[idx].wrapping_neg();
+        });
 
         Some(res)
     }
@@ -554,11 +707,21 @@ impl<'a> Neg for &'a Matrix {
 
 #[cfg(test)]
 pub mod test {
-    use crate::pir_internals::matrix::Matrix;
+    use crate::{client::SEED_BYTE_LEN, pir_internals::matrix::Matrix};
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;
 
+    /// Generates a random key-value database with the requested number of key-value pairs.
+    ///
+    /// # Arguments
+    ///
+    /// * `num_kv_pairs` - The number of key-value pairs to generate.
+    ///
+    /// # Returns
+    ///
+    /// * `HashMap<Vec<u8>, Vec<u8>>` - A HashMap containing the generated key-value pairs.
+    /// The keys and values are randomly generated byte arrays with lengths between fixed minimum and maximum values.
     pub fn generate_random_kv_database(num_kv_pairs: usize) -> HashMap<Vec<u8>, Vec<u8>> {
         const MIN_KEY_BYTE_LEN: usize = 16;
         const MAX_KEY_BYTE_LEN: usize = 32;
@@ -662,7 +825,7 @@ pub mod test {
 
         let mut rng = ChaCha8Rng::from_entropy();
 
-        let mut seed = [0u8; 32];
+        let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
 
         let mut current_attempt_count = 0;
@@ -691,7 +854,7 @@ pub mod test {
 
         let mut rng = ChaCha8Rng::from_entropy();
 
-        let mut seed = [0u8; 32];
+        let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
 
         let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
@@ -710,7 +873,7 @@ pub mod test {
 
         let mut rng = ChaCha8Rng::from_entropy();
 
-        let mut seed = [0u8; 32];
+        let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
 
         let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");

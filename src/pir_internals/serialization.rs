@@ -1,6 +1,24 @@
 use sha3::{Digest, Sha3_256};
 use std::cmp::min;
 
+use super::branch_opt_util;
+
+/// Encodes a key-value pair into a row of 32-bit unsigned integers.
+///
+/// The key is hashed using SHA3-256, and both the hashed key and value are interleaved into the row.
+/// A boundary marker is added to denote the end of valid value bytes. Remaining elements of the resulting row,
+/// if any, are filled with zeros.
+///
+/// # Arguments
+///
+/// * `key` - The key to encode.
+/// * `value` - The value to encode.
+/// * `mat_elem_bit_len` - The number of bits per element in the resulting row vector.
+/// * `num_cols` - The number of columns in the matrix (the length of the row).
+///
+/// # Returns
+///
+/// A vector of 32-bit unsigned integers representing the encoded key-value pair.
 #[inline]
 pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_cols: usize) -> Vec<u32> {
     let hashed_key = {
@@ -96,6 +114,20 @@ pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_c
     row
 }
 
+/// Decodes a key-value pair from a row of 32-bit unsigned integers.
+///
+/// The key-value pair is interleaved in the row.  A boundary marker is used to denote where actual value bytes end.
+/// The function returns `None` if the row does not contain a valid key-value pair or if there is an error during decoding.
+///
+/// # Arguments
+///
+/// * `row` - The row of 32-bit unsigned integers to decode.
+/// * `mat_elem_bit_len` - The number of bits per element in the row vector.
+///
+/// # Returns
+///
+/// An optional vector of bytes representing the decoded key-value pair.  The key is the first 32 bytes, followed by the value.
+/// Returns `None` if decoding fails.
 #[inline]
 pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8>> {
     let num_extractable_bits = (row.len() * mat_elem_bit_len) & 8usize.wrapping_neg();
@@ -137,17 +169,32 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
 
             let is_zeroed_post_boundary = kv[boundary_idx_from_front + 1..].iter().fold(true, |acc, &cur| acc & (cur == 0));
 
-            if is_zeroed_post_boundary && boundary_idx_from_front > 32 {
+            if branch_opt_util::likely(is_zeroed_post_boundary && boundary_idx_from_front > 32) {
                 kv.truncate(boundary_idx_from_front);
                 Some(kv)
             } else {
                 None
             }
         }
-        None => None,
+        None => {
+            branch_opt_util::cold();
+            None
+        }
     }
 }
 
+/// Converts a slice of bytes into a u64 in little-endian byte order.
+///
+/// Reads at most 8 bytes from the input slice. If the slice is shorter than 8 bytes, it reads only the available bytes,
+/// while setting other bytes to 0. The function handles cases where the input slice is empty.
+///
+/// # Arguments
+///
+/// * `bytes` - The slice of bytes to convert.
+///
+/// # Returns
+///
+/// A u64 representing the bytes in little-endian byte order.
 #[inline(always)]
 pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     let mut word = 0;
@@ -160,6 +207,15 @@ pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     word
 }
 
+/// Converts a u64 into a slice of bytes in little-endian byte order.
+///
+/// Writes at most 8 bytes to the output slice. If the slice is shorter than 8 bytes, it writes only the those many bytes.
+/// The function handles cases where the output slice is empty.
+///
+/// # Arguments
+///
+/// * `word` - The u64 to convert.
+/// * `bytes` - The mutable slice of bytes to write to.
 #[inline(always)]
 pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
     let writable_num_bytes = min(bytes.len(), std::mem::size_of::<u64>());

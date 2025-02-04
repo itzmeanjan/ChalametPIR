@@ -15,10 +15,21 @@ jobs:
     runs-on: ${{matrix.os}}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        # See https://docs.github.com/en/actions/writing-workflows/choosing-where-your-workflow-runs/choosing-the-runner-for-a-job#standard-github-hosted-runners-for-public-repositories
+        # for available targets.
+        os: [
+            ubuntu-latest, # x86-64
+            ubuntu-24.04-arm, # aarch64
+            macos-latest, # aarch64
+            macos-13, # x86_64
+            windows-latest # x86_64
+            ]
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Build and Test on ${{ matrix.os }}
         run: cargo test --profile test-release
+
+      - name: Run Example on ${{ matrix.os }}
+        run: cargo run --example kw_pir --profile optimized

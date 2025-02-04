@@ -16,6 +16,18 @@ pub struct BinaryFuseFilter {
 }
 
 impl BinaryFuseFilter {
+    /// Constructs a 3-wise xor Binary Fuse Filter. This implementation collects inspiration from https://github.com/FastFilter/fastfilter_cpp/blob/5df1dc5063702945f6958e4bda445dd082aed366/src/xorfilter/3wise_xor_binary_fuse_filter_lowmem.h.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - A HashMap, representing a Key-Value database, containing the data to be inserted into the filter.
+    /// * `mat_elem_bit_len` - The number of bits per element in the filter's matrix.
+    /// * `max_attempt_count` - The maximum number of attempts to construct the filter before giving up.
+    ///
+    /// # Returns
+    ///
+    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns None if the filter could not be constructed within the given number of attempts.
     pub fn construct_3_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -212,6 +224,18 @@ impl BinaryFuseFilter {
         ))
     }
 
+    /// Constructs a 4-wise xor Binary Fuse Filter. This implementation collects inspiration from https://github.com/FastFilter/fastfilter_cpp/blob/5df1dc5063702945f6958e4bda445dd082aed366/src/xorfilter/4wise_xor_binary_fuse_filter_lowmem.h.
+    ///
+    /// # Arguments
+    ///
+    /// * `db` - A HashMap, representing a Key-Value database, containing the data to be inserted into the filter.
+    /// * `mat_elem_bit_len` - The number of bits per element in the filter's matrix.
+    /// * `max_attempt_count` - The maximum number of attempts to construct the filter before giving up.
+    ///
+    /// # Returns
+    ///
+    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns None if the filter could not be constructed within the given number of attempts.
     pub fn construct_4_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -433,6 +457,8 @@ impl BinaryFuseFilter {
         bincode::deserialize(bytes).map_err(|err| format!("Failed to deserialize: {}", err))
     }
 }
+
+// Various utility functions, used in the construction of Binary Fuse Filters.
 
 #[inline(always)]
 pub fn segment_length<const ARITY: u32>(size: u32) -> u32 {
