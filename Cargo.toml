@@ -10,7 +10,6 @@ documentation = "https://github.com/itzmeanjan/ChalametPIR"
 readme = "README.md"
 repository = "https://github.com/itzmeanjan/ChalametPIR.git"
 license = "MPL-2.0"
-license-file = "LICENSE"
 keywords = ["priv-info-retrieval", "lwe-pir", "frodo-pir", "chalamet-pir"]
 categories = ["cryptography", "data-structures"]
 
