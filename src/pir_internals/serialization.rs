@@ -200,8 +200,8 @@ pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
     let mut word = 0;
     let readable_num_bytes = min(bytes.len(), std::mem::size_of::<u64>());
 
-    for i in 0..readable_num_bytes {
-        word |= (bytes[i] as u64) << (i * 8);
+    for (idx, &byte) in bytes.iter().enumerate().take(readable_num_bytes) {
+        word |= (byte as u64) << (idx * 8);
     }
 
     word
@@ -220,8 +220,8 @@ pub fn u64_from_le_bytes(bytes: &[u8]) -> u64 {
 pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
     let writable_num_bytes = min(bytes.len(), std::mem::size_of::<u64>());
 
-    for i in 0..writable_num_bytes {
-        bytes[i] = (word >> i * 8) as u8;
+    for (idx, byte) in bytes.iter_mut().enumerate().take(writable_num_bytes) {
+        *byte = (word >> (idx * 8)) as u8;
     }
 }
 

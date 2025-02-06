@@ -4,7 +4,7 @@ use crate::pir_internals::{
     matrix::Matrix,
     params::{LWE_DIMENSION, SERVER_SETUP_MAX_ATTEMPT_COUNT},
 };
-use std::{collections::HashMap, u32};
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct Server {

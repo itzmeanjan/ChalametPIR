@@ -231,9 +231,7 @@ impl Client {
                         }
 
                         let masked = rounded_res & mat_elem_mask;
-                        let unmasked = masked.wrapping_add(binary_fuse_filter::mix(hash, idx as u64) as u32) & mat_elem_mask;
-
-                        unmasked
+                        masked.wrapping_add(binary_fuse_filter::mix(hash, idx as u64) as u32) & mat_elem_mask
                     })
                     .collect::<Vec<u32>>();
 
