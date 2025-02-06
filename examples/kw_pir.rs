@@ -55,7 +55,6 @@ fn format_bytes(bytes: usize) -> String {
 }
 
 fn main() {
-    const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 3;
 
     let mut rng = ChaCha8Rng::from_entropy();
@@ -79,14 +78,13 @@ fn main() {
     println!("Size of each key                          : {}", format_bytes(key_byte_len));
     println!("Size of each value                        : {}", format_bytes(value_byte_len));
     println!("Arity of Binary Fuse Filter               : {}", ARITY);
-    println!("Encoded DB matrix element bit length      : {}", MAT_ELEM_BIT_LEN);
 
     // Sample seed for producing public LWE matrix A.
     let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     // Setup PIR server, for given KV database.
-    let (server_handle, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+    let (server_handle, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
 
     println!("Seed size                                 : {}", format_bytes(seed_μ.len()));
     println!("Hint size                                 : {}", format_bytes(hint_bytes.len()));

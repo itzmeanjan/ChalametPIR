@@ -30,7 +30,6 @@ fn generate_random_kv_database(rng: &mut ChaCha8Rng, num_kv_pairs: usize, key_by
 #[derive(Debug)]
 struct DBConfig {
     db_entry_count: usize,
-    mat_elem_bit_len: usize,
     key_byte_len: usize,
     value_byte_len: usize,
 }
@@ -38,19 +37,16 @@ struct DBConfig {
 const ARGS: &[DBConfig] = &[
     DBConfig {
         db_entry_count: 1usize << 16,
-        mat_elem_bit_len: 10,
         key_byte_len: 32,
         value_byte_len: 1024,
     },
     DBConfig {
         db_entry_count: 1usize << 18,
-        mat_elem_bit_len: 10,
         key_byte_len: 32,
         value_byte_len: 1024,
     },
     DBConfig {
         db_entry_count: 1usize << 20,
-        mat_elem_bit_len: 9,
         key_byte_len: 32,
         value_byte_len: 1024,
     },
@@ -67,7 +63,7 @@ fn client_query<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
     let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
-    let (_, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(db_config.mat_elem_bit_len, &seed_μ, kv_as_ref.clone()).unwrap();
+    let (_, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(&seed_μ, kv_as_ref.clone()).unwrap();
     let client = client::Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).unwrap();
 
     let (&key, _) = kv_as_ref.iter().last().unwrap();
@@ -88,7 +84,7 @@ fn server_respond<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfi
     let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(db_config.mat_elem_bit_len, &seed_μ, kv_as_ref.clone()).unwrap();
+    let (server, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(&seed_μ, kv_as_ref.clone()).unwrap();
     let mut client = client::Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).unwrap();
 
     let (&key, _) = kv_as_ref.iter().last().unwrap();
@@ -107,7 +103,7 @@ fn client_process_response<const ARITY: u32>(bencher: divan::Bencher, db_config:
     let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(db_config.mat_elem_bit_len, &seed_μ, kv_as_ref.clone()).unwrap();
+    let (server, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(&seed_μ, kv_as_ref.clone()).unwrap();
     let mut client = client::Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).unwrap();
 
     let (&key, _) = kv_as_ref.iter().last().unwrap();
