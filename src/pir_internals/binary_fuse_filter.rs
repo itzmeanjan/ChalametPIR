@@ -1,3 +1,5 @@
+use super::error::ChalametPIRError;
+use crate::pir_internals::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -34,12 +36,12 @@ impl BinaryFuseFilter {
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
+    ) -> Result<BinaryFuseFilterIntermediateStageResult<'a>, ChalametPIRError> {
         const ARITY: u32 = 3;
 
         let db_size = db.len();
-        if db_size == 0 {
-            return None;
+        if branch_opt_util::unlikely(db_size == 0) {
+            return Err(ChalametPIRError::EmptyKVDatabase);
         }
 
         let segment_length = segment_length::<ARITY>(db_size as u32).min(1u32 << 18);
@@ -204,11 +206,11 @@ impl BinaryFuseFilter {
             t2hash.fill(0);
         }
 
-        if !done {
-            return None;
+        if branch_opt_util::unlikely(!done) {
+            return Err(ChalametPIRError::ExhaustedAllAttemptsToBuild3WiseXorFilter(max_attempt_count));
         }
 
-        Some((
+        Ok((
             BinaryFuseFilter {
                 seed,
                 arity: ARITY,
@@ -240,12 +242,12 @@ impl BinaryFuseFilter {
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
+    ) -> Result<BinaryFuseFilterIntermediateStageResult<'a>, ChalametPIRError> {
         const ARITY: u32 = 4;
 
         let db_size = db.len();
-        if db_size == 0 {
-            return None;
+        if branch_opt_util::unlikely(db_size == 0) {
+            return Err(ChalametPIRError::EmptyKVDatabase);
         }
 
         let segment_length = segment_length::<ARITY>(db_size as u32).min(1u32 << 18);
@@ -422,11 +424,11 @@ impl BinaryFuseFilter {
             t2hash.fill(0);
         }
 
-        if !done {
-            return None;
+        if branch_opt_util::unlikely(!done) {
+            return Err(ChalametPIRError::ExhaustedAllAttemptsToBuild4WiseXorFilter(max_attempt_count));
         }
 
-        Some((
+        Ok((
             BinaryFuseFilter {
                 seed,
                 arity: ARITY,
