@@ -129,7 +129,7 @@ fn main() {
     let mut seed_μ = [0u8; 32]; // You'll want to generate a cryptographically secure random seed
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(10, &seed_μ, db.clone()).expect("Server setup failed");
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, db.clone()).expect("Server setup failed");
 
     // Client setup (offline phase)
     let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
@@ -154,7 +154,7 @@ fn main() {
 }
 ```
 
-The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used,which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. Also, the `mat_elem_bit_len` parameter impacts the correctness and performance of the PIR scheme. It depends on the number of entries in the database. I advise you to see eq. 8 in section 5.1 of FrodoPIR paper @ https://ia.cr/2022/981. For suggested values of `mat_elem_bit_len` for different database sizes, I advise you to have a look at table 5 in section 5.2 of FrodoPIR paper. Interpret $ρ = 2^{mat\_elem\_bit\_len}$.
+The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used to encode the KV database, which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. This implementation should allow you to run PIR queries on a KV database with at max 2^42 (~4 trillion) number of entries.
 
 I maintain one example [program](./examples/kw_pir.rs) which demonstrates usage of the ChalametPIR API.
 
@@ -169,7 +169,6 @@ Number of entries in Key-Value Database   : 65536
 Size of each key                          : 8.0B
 Size of each value                        : 4.0B
 Arity of Binary Fuse Filter               : 3
-Encoded DB matrix element bit length      : 10
 Seed size                                 : 32.0B
 Hint size                                 : 207.9KB
 Filter parameters size                    : 68.0B
@@ -205,7 +204,6 @@ Number of entries in Key-Value Database   : 65536
 Size of each key                          : 8.0B
 Size of each value                        : 4.0B
 Arity of Binary Fuse Filter               : 4
-Encoded DB matrix element bit length      : 10
 Seed size                                 : 32.0B
 Hint size                                 : 207.9KB
 Filter parameters size                    : 68.0B
