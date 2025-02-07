@@ -57,7 +57,7 @@ fn format_bytes(bytes: usize) -> String {
 fn main() {
     const ARITY: u32 = 3;
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     // Make a sample Key-Value database.
     let kv_db = make_toy_kv_db(&mut rng);
@@ -99,7 +99,7 @@ fn main() {
     let total_num_keys_to_be_queried = 20;
     let mut num_keys_quried = 0;
     while num_keys_quried < total_num_keys_to_be_queried {
-        let random_key = rng.gen_range(0..kv_db.len() * 2);
+        let random_key = rng.random_range(0..kv_db.len() * 2);
         let is_random_key_in_db = kv_db.contains_key(&random_key);
 
         let key_as_bytes = random_key.to_le_bytes();

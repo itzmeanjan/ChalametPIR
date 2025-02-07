@@ -14,7 +14,7 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
     let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let mut seed_μ = [0u8; 32];
     rng.fill_bytes(&mut seed_μ);
@@ -64,7 +64,7 @@ fn test_keyword_pir_with_4_wise_xor_filter() {
     let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let mut seed_μ = [0u8; 32];
     rng.fill_bytes(&mut seed_μ);

@@ -55,7 +55,7 @@ const ARITIES: [u32; 2] = [3, 4];
 
 #[divan::bench(args = ARGS, consts = ARITIES, max_time = Duration::from_secs(300), skip_ext_time = true)]
 fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig) {
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
     let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
@@ -70,7 +70,7 @@ fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
 
 #[divan::bench(args = ARGS, consts = ARITIES, max_time = Duration::from_secs(300), skip_ext_time = true)]
 fn client_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig) {
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
     let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
