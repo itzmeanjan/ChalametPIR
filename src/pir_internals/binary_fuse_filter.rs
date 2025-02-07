@@ -15,6 +15,8 @@ pub struct BinaryFuseFilter {
     pub mat_elem_bit_len: usize,
 }
 
+type BinaryFuseFilterIntermediateStageResult<'a> = (BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>);
+
 impl BinaryFuseFilter {
     /// Constructs a 3-wise xor Binary Fuse Filter. This implementation collects inspiration from https://github.com/FastFilter/fastfilter_cpp/blob/5df1dc5063702945f6958e4bda445dd082aed366/src/xorfilter/3wise_xor_binary_fuse_filter_lowmem.h.
     ///
@@ -32,7 +34,7 @@ impl BinaryFuseFilter {
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
+    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
         const ARITY: u32 = 3;
 
         let db_size = db.len();
@@ -45,11 +47,11 @@ impl BinaryFuseFilter {
         let size_factor = size_factor::<ARITY>(db_size as u32);
         let capacity = if db_size > 1 { ((db_size as f64) * size_factor).round() as u32 } else { 0 };
 
-        let init_segment_count = (capacity + segment_length - 1) / segment_length;
+        let init_segment_count = capacity.div_ceil(segment_length);
         let (num_fingerprints, segment_count) = {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
-                let proposed = (array_len + segment_length - 1) / segment_length;
+                let proposed = array_len.div_ceil(segment_length);
                 if proposed < ARITY {
                     1
                 } else {
@@ -93,8 +95,8 @@ impl BinaryFuseFilter {
         for _ in 0..max_attempt_count {
             rng.fill_bytes(&mut seed);
 
-            for i in 0..start_pos_len {
-                start_pos[i] = (((i as u64) * (db_size as u64)) >> block_bits) as usize;
+            for (idx, val) in start_pos.iter_mut().enumerate() {
+                *val = (((idx as u64) * (db_size as u64)) >> block_bits) as usize;
             }
 
             for &key in db.keys() {
@@ -114,9 +116,7 @@ impl BinaryFuseFilter {
             }
 
             let mut error = false;
-            for i in 0..db_size {
-                let hash = reverse_order[i];
-
+            for &hash in reverse_order.iter().take(db_size) {
                 let (h0, h1, h2) = hash_batch_for_3_wise_xor_filter(hash, segment_length, segment_count_length);
                 let (h0, h1, h2) = (h0 as usize, h1 as usize, h2 as usize);
 
@@ -143,9 +143,9 @@ impl BinaryFuseFilter {
             }
 
             let mut qsize = 0;
-            for i in 0..num_fingerprints {
-                alone[qsize] = i as u32;
-                if (t2count[i] >> 2) == 1 {
+            for (idx, &count) in t2count.iter().enumerate().take(num_fingerprints) {
+                alone[qsize] = idx as u32;
+                if (count >> 2) == 1 {
                     qsize += 1;
                 }
             }
@@ -240,7 +240,7 @@ impl BinaryFuseFilter {
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<(BinaryFuseFilter, Vec<u64>, Vec<u8>, HashMap<u64, &'a [u8]>)> {
+    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
         const ARITY: u32 = 4;
 
         let db_size = db.len();
@@ -253,11 +253,11 @@ impl BinaryFuseFilter {
         let size_factor = size_factor::<ARITY>(db_size as u32);
         let capacity = if db_size > 1 { ((db_size as f64) * size_factor).round() as u32 } else { 0 };
 
-        let init_segment_count = (capacity + segment_length - 1) / segment_length;
+        let init_segment_count = capacity.div_ceil(segment_length);
         let (num_fingerprints, segment_count) = {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
-                let proposed = (array_len + segment_length - 1) / segment_length;
+                let proposed = array_len.div_ceil(segment_length);
                 if proposed < ARITY {
                     1
                 } else {
@@ -301,8 +301,8 @@ impl BinaryFuseFilter {
         for _ in 0..max_attempt_count {
             rng.fill_bytes(&mut seed);
 
-            for i in 0..start_pos_len {
-                start_pos[i] = (((i as u64) * (db_size as u64)) >> block_bits) as usize;
+            for (idx, val) in start_pos.iter_mut().enumerate().take(start_pos_len) {
+                *val = (((idx as u64) * (db_size as u64)) >> block_bits) as usize;
             }
 
             for &key in db.keys() {
@@ -322,9 +322,7 @@ impl BinaryFuseFilter {
             }
 
             let mut count_mask = 0u8;
-            for i in 0..db_size {
-                let hash = reverse_order[i];
-
+            for &hash in reverse_order.iter().take(db_size) {
                 let (h0, h1, h2, h3) = hash_batch_for_4_wise_xor_filter(hash, segment_length, segment_count_length);
                 let (h0, h1, h2, h3) = (h0 as usize, h1 as usize, h2 as usize, h3 as usize);
 
@@ -333,17 +331,17 @@ impl BinaryFuseFilter {
                 count_mask |= t2count[h0];
 
                 t2count[h1] += 4;
-                t2count[h1] ^= 1 as u8;
+                t2count[h1] ^= 1u8;
                 t2hash[h1] ^= hash;
                 count_mask |= t2count[h1];
 
                 t2count[h2] += 4;
-                t2count[h2] ^= 2 as u8;
+                t2count[h2] ^= 2u8;
                 t2hash[h2] ^= hash;
                 count_mask |= t2count[h2];
 
                 t2count[h3] += 4;
-                t2count[h3] ^= 3 as u8;
+                t2count[h3] ^= 3u8;
                 t2hash[h3] ^= hash;
                 count_mask |= t2count[h3];
             }
@@ -357,9 +355,9 @@ impl BinaryFuseFilter {
             }
 
             let mut qsize = 0;
-            for i in 0..num_fingerprints {
-                alone[qsize] = i as u32;
-                if (t2count[i] >> 2) == 1 {
+            for (idx, &count) in t2count.iter().enumerate().take(num_fingerprints) {
+                alone[qsize] = idx as u32;
+                if (count >> 2) == 1 {
                     qsize += 1;
                 }
             }
@@ -532,7 +530,7 @@ pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
 }
 
 #[inline(always)]
-pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
+pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
     let seed_words = [
         u64::from_le_bytes(seed[..8].try_into().unwrap()),
         u64::from_le_bytes(seed[8..16].try_into().unwrap()),
@@ -540,7 +538,7 @@ pub fn mix256<'a>(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         u64::from_le_bytes(seed[24..].try_into().unwrap()),
     ];
 
-    key.into_iter()
+    key.iter()
         .map(|&k| {
             seed_words
                 .into_iter()
@@ -574,7 +572,7 @@ pub const fn hash_batch_for_4_wise_xor_filter(hash: u64, segment_length: u32, se
     let mut h2 = h1 + segment_length;
     let mut h3 = h2 + segment_length;
 
-    h1 ^= ((hash >> 0) as u32) & segment_length_mask;
+    h1 ^= (hash as u32) & segment_length_mask;
     h2 ^= ((hash >> 16) as u32) & segment_length_mask;
     h3 ^= ((hash >> 32) as u32) & segment_length_mask;
 

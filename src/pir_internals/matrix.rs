@@ -147,8 +147,7 @@ impl Matrix {
         let mut res = Matrix::new(self.cols, self.rows).unwrap();
 
         (0..self.cols)
-            .map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
-            .flatten()
+            .flat_map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
             .for_each(|(ridx, cidx)| {
                 res[(ridx, cidx)] = self[(cidx, ridx)];
             });
@@ -359,7 +358,7 @@ impl Matrix {
 
                     let row = serialization::encode_kv_as_row(key, value, mat_elem_bit_len, cols);
 
-                    let mat_row_idx0 = h012[found + 0] as usize;
+                    let mat_row_idx0 = h012[found] as usize;
                     let mat_row_idx1 = h012[found + 1] as usize;
                     let mat_row_idx2 = h012[found + 2] as usize;
 
@@ -494,7 +493,7 @@ impl Matrix {
 
                     let row = serialization::encode_kv_as_row(key, value, mat_elem_bit_len, cols);
 
-                    let mat_row_idx0 = h0123[found + 0] as usize;
+                    let mat_row_idx0 = h0123[found] as usize;
                     let mat_row_idx1 = h0123[found + 1] as usize;
                     let mat_row_idx2 = h0123[found + 2] as usize;
                     let mat_row_idx3 = h0123[found + 3] as usize;
@@ -632,7 +631,7 @@ impl Mul for Matrix {
     }
 }
 
-impl<'a, 'b> Mul<&'b Matrix> for &'a Matrix {
+impl<'b> Mul<&'b Matrix> for &Matrix {
     type Output = Option<Matrix>;
 
     fn mul(self, rhs: &'b Matrix) -> Self::Output {
@@ -662,7 +661,7 @@ impl Add for Matrix {
     }
 }
 
-impl<'a, 'b> Add<&'b Matrix> for &'a Matrix {
+impl<'b> Add<&'b Matrix> for &Matrix {
     type Output = Option<Matrix>;
 
     fn add(self, rhs: &'b Matrix) -> Self::Output {
