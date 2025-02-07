@@ -44,7 +44,7 @@ Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` serve
 `server_respond` | 18.58 milliseconds | 33.19 milliseconds | 0.56
 `client_process_response` | 11.69 microseconds | 16.82 microseconds | 0.7
 
-> ![NOTE]
+> [!NOTE]
 > In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
 
 So, the median bandwidth of the `server_respond` algorithm, which needs to traverse through the whole processed database, is
