@@ -26,7 +26,6 @@ impl Server {
     ///
     /// # Arguments
     ///
-    /// * `mat_elem_bit_len`: The bit length of each element in the parsed DB matrix.  Affects the security parameters of the underlying LWE scheme.
     /// * `seed_μ`: The seed used for generating the public matrix.
     /// * `db`: The input database, represented as a hash map of key-value pairs. Keys and values are byte slices.
     ///
@@ -36,14 +35,9 @@ impl Server {
     /// # Returns
     ///
     /// An `Option` containing a tuple of the `Server` object, the serialized hint matrix bytes, and the serialized filter parameters bytes.  Returns `None` if any error occurs during setup.
-    pub fn setup<const ARITY: u32>(mat_elem_bit_len: usize, seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
+    pub fn setup<const ARITY: u32>(seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
         let db_num_kv_pairs = db.len();
-        if branch_opt_util::unlikely(!db_num_kv_pairs.is_power_of_two()) {
-            return None;
-        }
-        if branch_opt_util::unlikely(!Self::validate_lwe_params(mat_elem_bit_len, db_num_kv_pairs)) {
-            return None;
-        }
+        let mat_elem_bit_len = Self::find_encoded_db_matrix_element_bit_length(db_num_kv_pairs)?;
 
         let (parsed_db_mat_d, filter) = Matrix::from_kv_database::<ARITY>(db, mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)?;
 
@@ -83,10 +77,30 @@ impl Server {
     }
 
     /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.
-    fn validate_lwe_params(mat_elem_bit_len: usize, db_entry_count: usize) -> bool {
+    fn find_encoded_db_matrix_element_bit_length(db_entry_count: usize) -> Option<usize> {
+        const MIN_MAT_ELEM_BIT_LEN: usize = 4;
         const Q: usize = u32::MAX as usize + 1;
-        let ρ = 1usize << mat_elem_bit_len;
 
-        Q >= (8 * ρ * ρ) * db_entry_count.isqrt()
+        let sqrt_of_num_db_entry = db_entry_count.isqrt();
+
+        let mut mat_elem_bit_len: usize = 0;
+        let mut rho = 1usize << mat_elem_bit_len;
+
+        while Q >= (8 * rho * rho) * sqrt_of_num_db_entry {
+            mat_elem_bit_len = mat_elem_bit_len.wrapping_add(1);
+            rho = 1usize << mat_elem_bit_len;
+        }
+
+        mat_elem_bit_len = match mat_elem_bit_len.overflowing_sub(1) {
+            (_, true) => 0,
+            (wrapped, false) => wrapped,
+        };
+
+        // This should allow `db_entry_count` to be at max 2^42 (~4 trillion entries)
+        if branch_opt_util::likely(mat_elem_bit_len >= MIN_MAT_ELEM_BIT_LEN) {
+            Some(mat_elem_bit_len)
+        } else {
+            None
+        }
     }
 }

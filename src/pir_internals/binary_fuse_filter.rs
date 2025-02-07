@@ -90,7 +90,7 @@ impl BinaryFuseFilter {
         let mut ultimate_size = 0;
 
         let mut seed = [0u8; 32];
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha20Rng::from_os_rng();
 
         for _ in 0..max_attempt_count {
             rng.fill_bytes(&mut seed);
@@ -296,7 +296,7 @@ impl BinaryFuseFilter {
         let mut ultimate_size = 0;
 
         let mut seed = [0u8; 32];
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = ChaCha20Rng::from_os_rng();
 
         for _ in 0..max_attempt_count {
             rng.fill_bytes(&mut seed);

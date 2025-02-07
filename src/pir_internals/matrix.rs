@@ -226,7 +226,7 @@ impl Matrix {
         const TERNARY_INTERVAL_SIZE: u32 = (u32::MAX - 2) / 3;
         const TERNARY_REJECTION_SAMPLING_MAX: u32 = TERNARY_INTERVAL_SIZE * 3;
 
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
         let mut vec = Matrix::new(rows, cols)?;
 
         let num_elems = rows * cols;
@@ -236,7 +236,7 @@ impl Matrix {
             let mut val = u32::MAX;
 
             while branch_opt_util::unlikely(val > TERNARY_REJECTION_SAMPLING_MAX) {
-                val = rng.gen::<u32>();
+                val = rng.random::<u32>();
             }
 
             let ternary = if val <= TERNARY_INTERVAL_SIZE {
@@ -728,11 +728,11 @@ pub mod test {
         const MAX_VALUE_BYTE_LEN: usize = 512;
 
         let mut kv = HashMap::with_capacity(num_kv_pairs);
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
         for _ in 0..num_kv_pairs {
-            let key_byte_len = rng.gen_range(MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN);
-            let value_byte_len = rng.gen_range(MIN_VALUE_BYTE_LEN..=MAX_VALUE_BYTE_LEN);
+            let key_byte_len = rng.random_range(MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN);
+            let value_byte_len = rng.random_range(MIN_VALUE_BYTE_LEN..=MAX_VALUE_BYTE_LEN);
 
             let mut key = vec![0u8; key_byte_len];
             let mut value = vec![0u8; value_byte_len];
@@ -822,15 +822,15 @@ pub mod test {
         const MIN_MATRIX_DIM: usize = 1;
         const MAX_MATRIX_DIM: usize = 1024;
 
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_MATRIX_MULTIPLICATIONS {
-            let num_rows = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
-            let num_cols = rng.gen_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            let num_rows = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
 
             let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
             let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
@@ -851,7 +851,7 @@ pub mod test {
         const NUM_ROWS_IN_MATRIX: usize = 1024;
         const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
 
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
@@ -870,7 +870,7 @@ pub mod test {
         const NUM_ROWS_IN_MATRIX: usize = 1024;
         const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
 
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);

@@ -243,7 +243,7 @@ mod test {
         const MIN_MAT_ELEM_BIT_LEN: usize = 7;
         const MAX_MAT_ELEM_BIT_LEN: usize = 11;
 
-        let mut rng = ChaCha8Rng::from_entropy();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
         for key_byte_len in MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN {
             for value_byte_len in MIN_VALUE_BYTE_LEN..=MAX_VALUE_BYTE_LEN {

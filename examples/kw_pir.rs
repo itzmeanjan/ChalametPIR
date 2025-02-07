@@ -55,10 +55,9 @@ fn format_bytes(bytes: usize) -> String {
 }
 
 fn main() {
-    const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 3;
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     // Make a sample Key-Value database.
     let kv_db = make_toy_kv_db(&mut rng);
@@ -79,14 +78,13 @@ fn main() {
     println!("Size of each key                          : {}", format_bytes(key_byte_len));
     println!("Size of each value                        : {}", format_bytes(value_byte_len));
     println!("Arity of Binary Fuse Filter               : {}", ARITY);
-    println!("Encoded DB matrix element bit length      : {}", MAT_ELEM_BIT_LEN);
 
     // Sample seed for producing public LWE matrix A.
     let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     // Setup PIR server, for given KV database.
-    let (server_handle, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+    let (server_handle, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
 
     println!("Seed size                                 : {}", format_bytes(seed_μ.len()));
     println!("Hint size                                 : {}", format_bytes(hint_bytes.len()));
@@ -101,7 +99,7 @@ fn main() {
     let total_num_keys_to_be_queried = 20;
     let mut num_keys_quried = 0;
     while num_keys_quried < total_num_keys_to_be_queried {
-        let random_key = rng.gen_range(0..kv_db.len() * 2);
+        let random_key = rng.random_range(0..kv_db.len() * 2);
         let is_random_key_in_db = kv_db.contains_key(&random_key);
 
         let key_as_bytes = random_key.to_le_bytes();

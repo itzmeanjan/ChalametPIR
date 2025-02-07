@@ -9,18 +9,17 @@ use std::collections::HashMap;
 #[test]
 fn test_keyword_pir_with_3_wise_xor_filter() {
     const NUM_KV_PAIRS: usize = 2usize.pow(12);
-    const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 3;
 
     let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let mut seed_μ = [0u8; 32];
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
     let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
     let mut kv_iter = kv_db_as_ref.iter();
@@ -60,18 +59,17 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
 #[test]
 fn test_keyword_pir_with_4_wise_xor_filter() {
     const NUM_KV_PAIRS: usize = 2usize.pow(12);
-    const MAT_ELEM_BIT_LEN: usize = 10;
     const ARITY: u32 = 4;
 
     let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
 
     let mut seed_μ = [0u8; 32];
     rng.fill_bytes(&mut seed_μ);
 
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(MAT_ELEM_BIT_LEN, &seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
+    let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
     let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
     let mut kv_iter = kv_db_as_ref.iter();
