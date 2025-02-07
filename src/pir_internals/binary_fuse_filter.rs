@@ -449,12 +449,12 @@ impl BinaryFuseFilter {
         ((self.num_fingerprints as f64) * (self.mat_elem_bit_len as f64)) / (self.filter_size as f64)
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
+        bincode::serialize(&self).map_err(|err| ChalametPIRError::FailedToSerializeFilterToBytes(err))
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, String> {
-        bincode::deserialize(bytes).map_err(|err| format!("Failed to deserialize: {}", err))
+    pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, ChalametPIRError> {
+        bincode::deserialize(bytes).map_err(|err| ChalametPIRError::FailedToDeserializeFilterFromBytes(err))
     }
 }
 

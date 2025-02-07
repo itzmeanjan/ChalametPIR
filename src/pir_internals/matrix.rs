@@ -593,13 +593,13 @@ impl Matrix {
         }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
+        bincode::serialize(&self).map_err(|e| ChalametPIRError::FailedToSerializeMatrixToBytes(e))
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, String> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, ChalametPIRError> {
         bincode::deserialize(bytes).map_or_else(
-            |e| Err(format!("Failed to deserialize: {}", e)),
+            |e| Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes(e)),
             |v: Matrix| {
                 let expected_num_elems = v.num_rows() * v.num_cols();
                 let actual_num_elems = v.num_elems();
@@ -607,7 +607,7 @@ impl Matrix {
                 if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
                     Ok(v)
                 } else {
-                    Err("Number of rows/ cols and number of elements do not match !".to_string())
+                    Err(ChalametPIRError::InvalidNumberOfElementsInMatrix)
                 }
             },
         )
