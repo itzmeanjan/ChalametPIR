@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use crate::pir_internals::matrix::test::generate_random_kv_database;
+use crate::ChalametPIRError;
 use crate::{client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -41,14 +42,15 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
         }
 
         match client.query(key) {
-            Some(query_bytes) => {
+            Ok(query_bytes) => {
                 let response_bytes = server.respond(&query_bytes).expect("Server can't respond");
                 let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
 
                 assert_eq!(value, received_value);
                 is_current_kv_pair_processed = true;
             }
-            None => {
+            Err(e) => {
+                assert_eq!(e, ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
                 is_current_kv_pair_processed = false;
                 continue;
             }
@@ -91,14 +93,15 @@ fn test_keyword_pir_with_4_wise_xor_filter() {
         }
 
         match client.query(key) {
-            Some(query_bytes) => {
+            Ok(query_bytes) => {
                 let response_bytes = server.respond(&query_bytes).expect("Server can't respond");
                 let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
 
                 assert_eq!(value, received_value);
                 is_current_kv_pair_processed = true;
             }
-            None => {
+            Err(e) => {
+                assert_eq!(e, ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
                 is_current_kv_pair_processed = false;
                 continue;
             }
