@@ -57,15 +57,15 @@ impl Client {
     /// Used only for benchmarking. You are not supposed to use this.
     #[cfg(feature = "mutate_internal_client_state")]
     #[inline(always)]
-    pub fn discard_query(&mut self, key: &'a [u8]) -> Option<Query> {
+    pub fn discard_query(&mut self, key: &[u8]) -> Option<Query> {
         self.pending_queries.remove(key)
     }
 
     /// Used only for benchmarking. You are not supposed to use this.
     #[cfg(feature = "mutate_internal_client_state")]
     #[inline(always)]
-    pub fn insert_query(&mut self, key: &'a [u8], query: Query) {
-        self.pending_queries.insert(key, query);
+    pub fn insert_query(&mut self, key: &[u8], query: Query) {
+        self.pending_queries.insert(key.to_vec(), query);
     }
 
     /// Generates a PIR query for the specified key.
