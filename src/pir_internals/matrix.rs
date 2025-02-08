@@ -594,12 +594,12 @@ impl Matrix {
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
-        bincode::serialize(&self).map_err(|e| ChalametPIRError::FailedToSerializeMatrixToBytes(e))
+        bincode::serialize(&self).map_err(|e| ChalametPIRError::FailedToSerializeMatrixToBytes(e.to_string()))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, ChalametPIRError> {
         bincode::deserialize(bytes).map_or_else(
-            |e| Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes(e)),
+            |e| Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes(e.to_string())),
             |v: Matrix| {
                 let expected_num_elems = v.num_rows() * v.num_cols();
                 let actual_num_elems = v.num_elems();

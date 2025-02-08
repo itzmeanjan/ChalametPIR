@@ -450,11 +450,11 @@ impl BinaryFuseFilter {
     }
 
     pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
-        bincode::serialize(&self).map_err(|err| ChalametPIRError::FailedToSerializeFilterToBytes(err))
+        bincode::serialize(&self).map_err(|err| ChalametPIRError::FailedToSerializeFilterToBytes(err.to_string()))
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, ChalametPIRError> {
-        bincode::deserialize(bytes).map_err(|err| ChalametPIRError::FailedToDeserializeFilterFromBytes(err))
+        bincode::deserialize(bytes).map_err(|err| ChalametPIRError::FailedToDeserializeFilterFromBytes(err.to_string()))
     }
 }
 

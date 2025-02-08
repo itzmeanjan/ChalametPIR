@@ -9,8 +9,8 @@ pub enum ChalametPIRError {
     InvalidNumberOfElementsInMatrix,
     IncompatibleDimensionForRowVectorTransposedMatrixMultiplication,
     InvalidDimensionForVector,
-    FailedToSerializeMatrixToBytes(Box<bincode::ErrorKind>),
-    FailedToDeserializeMatrixFromBytes(Box<bincode::ErrorKind>),
+    FailedToSerializeMatrixToBytes(String),
+    FailedToDeserializeMatrixFromBytes(String),
 
     // Binary Fuse Fiter
     EmptyKVDatabase,
@@ -19,8 +19,8 @@ pub enum ChalametPIRError {
     KeyNotFoundInMap,
     RowNotDecodable,
     DecodedRowNotPrependedWithDigestOfKey,
-    FailedToSerializeFilterToBytes(Box<bincode::ErrorKind>),
-    FailedToDeserializeFilterFromBytes(Box<bincode::ErrorKind>),
+    FailedToSerializeFilterToBytes(String),
+    FailedToDeserializeFilterFromBytes(String),
 }
 
 impl Display for ChalametPIRError {
