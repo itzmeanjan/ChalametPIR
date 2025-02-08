@@ -24,7 +24,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Sets up a new keyword *P*rivate *I*nformation *R*etrieval client instance.
+    /// Sets up a new keyword **P**rivate **I**nformation **R**etrieval client instance.
     ///
     /// This function initializes a client object with the necessary parameters for performing private information retrieval (PIR) queries.
     /// It takes as input:
@@ -33,7 +33,7 @@ impl Client {
     /// * `hint_bytes`: A byte array representing the hint matrix M. This matrix is used to help reconstruct the result of the PIR query.
     /// * `filter_param_bytes`: A byte array containing the parameters for the underlying binary fuse filter in-use.
     ///
-    /// Errors can occur if the `BinaryFuseFilter` cannot be constructed from the provided bytes, or if matrix generation fails.  These errors will result in `None` being returned.
+    /// Errors can occur if the `BinaryFuseFilter` cannot be constructed from the provided bytes, or if matrix generation fails.  These errors will result in a `ChalametPIRError` being returned.
     pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Result<Client, ChalametPIRError> {
         let filter = BinaryFuseFilter::from_bytes(filter_param_bytes)?;
 
@@ -70,7 +70,7 @@ impl Client {
 
     /// Generates a PIR query for the specified key.
     ///
-    /// The query is added to the client's pending queries, awaiting a response. If a query for the same key already exists, this function returns `None`.
+    /// The query is added to the client's pending queries, awaiting a response. If a query for the same key already exists, this function returns an error.
     ///
     /// # Arguments
     ///
@@ -78,7 +78,7 @@ impl Client {
     ///
     /// # Returns
     ///
-    /// `Some(Vec<u8>)` containing the query bytes if successful, `None` otherwise. Failure can occur due to integer addition overflow during query generation, or if a query for the same key already exists.
+    /// `Result<Vec<u8>, ChalametPIRError>` containing the query bytes if successful, or an error if a query for the same key already exists or if arithmetic overflow occurs during query generation.
     pub fn query(&mut self, key: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),
@@ -193,7 +193,8 @@ impl Client {
 
     /// Processes a response to a PIR query.
     ///
-    /// This function takes the key associated with a pending query and the received response bytes as input. It reconstructs the original data from the response, removes the query from the pending queries, and returns the result.
+    /// This function takes the key associated with a pending query and the received response bytes as input.
+    /// It reconstructs the original data from the response, removes the query from the pending queries, and returns the result.
     ///
     /// # Arguments
     ///
@@ -202,7 +203,7 @@ impl Client {
     ///
     /// # Returns
     ///
-    /// `Some(Vec<u8>)` containing the retrieved data if successful, `None` otherwise. Failure can occur if the response vector has an unexpected dimension, if decoding fails, or if the query is not found in `pending_queries`.
+    /// `Result<Vec<u8>, ChalametPIRError>` containing the retrieved data if successful, or an error if the response vector has an unexpected dimension, if decoding fails, or if the query is not found in `pending_queries`.
     pub fn process_response(&mut self, key: &[u8], response_bytes: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         match self.pending_queries.get(key) {
             Some(query) => {

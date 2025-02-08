@@ -30,8 +30,8 @@ impl BinaryFuseFilter {
     ///
     /// # Returns
     ///
-    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
-    /// Returns None if the filter could not be constructed within the given number of attempts.
+    /// A Result containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns an error if the filter could not be constructed within the given number of attempts or the key-value database is empty.
     pub fn construct_3_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -236,8 +236,8 @@ impl BinaryFuseFilter {
     ///
     /// # Returns
     ///
-    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
-    /// Returns None if the filter could not be constructed within the given number of attempts.
+    /// A Result containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns an error if the filter could not be constructed within the given number of attempts or the key-value database is empty.
     pub fn construct_4_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -531,6 +531,7 @@ pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
     ]
 }
 
+/// Collects inspiration from https://github.com/claucece/chalamet/blob/515ff1479940a2917ad247acb6ab9e6d27e139a1/bff-modp/src/prelude/mod.rs#L43-L62.
 #[inline(always)]
 pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
     let seed_words = [
@@ -549,6 +550,7 @@ pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
 
+/// Collects inspiration from https://github.com/FastFilter/xor_singleheader/blob/a5a3630619f375a5610938bdfd61ec7e9f9fed1c/include/binaryfusefilter.h#L154-L164.
 #[inline(always)]
 pub const fn hash_batch_for_3_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32) {
     let segment_length_mask = segment_length - 1;
@@ -564,6 +566,7 @@ pub const fn hash_batch_for_3_wise_xor_filter(hash: u64, segment_length: u32, se
     (h0, h1, h2)
 }
 
+/// Collects inspiration from https://github.com/FastFilter/fastfilter_cpp/blob/5df1dc5063702945f6958e4bda445dd082aed366/src/xorfilter/4wise_xor_binary_fuse_filter_lowmem.h#L57-L67.
 #[inline(always)]
 pub const fn hash_batch_for_4_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32, u32) {
     let segment_length_mask = segment_length - 1;

@@ -39,8 +39,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
-    /// * `None` - If either rows or cols is zero or less.
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
+    ///     Returns an error if either rows or cols is zero.
     pub fn new(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             Ok(Matrix {
@@ -63,8 +63,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
-    /// * `None` - If either rows or cols is zero or less, or if the number of values does not match the number of required elements.
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
+    ///     Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
     pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             if branch_opt_util::likely(rows * cols == values.len()) {
@@ -98,8 +98,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - The resulting matrix (1xM) if the input is valid.
-    /// * `None` - If the input is invalid (self is not a row vector, or the dimensions are incompatible).
+    /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
+    ///     Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
     pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
@@ -120,7 +120,7 @@ impl Matrix {
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
-    /// Creates a new identity matrix with the given number of rows and columns.
+    /// Creates a new identity matrix of requested dimension.
     ///
     /// # Arguments
     ///
@@ -128,8 +128,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new identity matrix if the input is valid (rows is positive).
-    /// * `None` - If rows is zero or less.
+    /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
+    ///     Returns an error if rows is zero.
     pub fn identity(rows: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(rows == 0) {
             return Err(ChalametPIRError::InvalidMatrixDimension);
@@ -150,7 +150,7 @@ impl Matrix {
     ///
     /// * `Matrix` - The transposed matrix.
     pub fn transpose(&self) -> Matrix {
-        let mut res = Matrix::new(self.cols, self.rows).unwrap();
+        let mut res = unsafe { Matrix::new(self.cols, self.rows).unwrap_unchecked() };
 
         (0..self.cols)
             .flat_map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
@@ -171,8 +171,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
-    /// * `None` - If either rows or cols is zero or less.
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
+    ///     Returns an error if either rows or cols is zero.
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
         let mut hasher = Shake128::default();
         hasher.update(seed);
@@ -222,8 +222,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new row/ column vector if the input is valid (rows or cols is 1).
-    /// * `None` - If neither rows nor cols is 1.
+    /// * `Result<Matrix, ChalametPIRError>` - A new row/ column vector if the input is valid (rows or cols is 1).
+    ///     Returns an error if neither rows nor cols is 1.
     pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return Err(ChalametPIRError::InvalidDimensionForVector);
@@ -260,19 +260,18 @@ impl Matrix {
         Ok(vec)
     }
 
-    /// Encodes a key-value database, as a matrix, using many column-wise Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using column-wise Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode.  Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -299,8 +298,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_encoded_kv_database<const ARITY: u32>(
         &self,
@@ -319,19 +318,18 @@ impl Matrix {
         }
     }
 
-    /// Encodes a key-value database, as a matrix, using 3-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using 3-wise XOR Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode. Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -411,8 +409,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
@@ -452,19 +450,18 @@ impl Matrix {
         }
     }
 
-    /// Encodes a key-value database, as a matrix, using 4-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using 4-wise XOR Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode. Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     fn from_kv_database_with_4_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -551,8 +548,8 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
