@@ -1,8 +1,10 @@
-pub use crate::pir_internals::params::SEED_BYTE_LEN;
-use crate::pir_internals::{
-    branch_opt_util,
-    matrix::Matrix,
-    params::{LWE_DIMENSION, SERVER_SETUP_MAX_ATTEMPT_COUNT},
+use crate::{
+    pir_internals::{
+        branch_opt_util,
+        matrix::Matrix,
+        params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
+    },
+    ChalametPIRError,
 };
 use std::collections::HashMap;
 
@@ -35,7 +37,7 @@ impl Server {
     /// # Returns
     ///
     /// An `Option` containing a tuple of the `Server` object, the serialized hint matrix bytes, and the serialized filter parameters bytes.  Returns `None` if any error occurs during setup.
-    pub fn setup<const ARITY: u32>(seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Option<(Server, Vec<u8>, Vec<u8>)> {
+    pub fn setup<const ARITY: u32>(seed_μ: &[u8; SEED_BYTE_LEN], db: HashMap<&[u8], &[u8]>) -> Result<(Server, Vec<u8>, Vec<u8>), ChalametPIRError> {
         let db_num_kv_pairs = db.len();
         let mat_elem_bit_len = Self::find_encoded_db_matrix_element_bit_length(db_num_kv_pairs)?;
 
@@ -47,11 +49,11 @@ impl Server {
         let pub_mat_a = unsafe { Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ).unwrap_unchecked() };
 
         let hint_mat_m = unsafe { (&pub_mat_a * &parsed_db_mat_d).unwrap_unchecked() };
-        let hint_bytes = hint_mat_m.to_bytes().ok()?;
-        let filter_param_bytes: Vec<u8> = filter.to_bytes().ok()?;
+        let hint_bytes = hint_mat_m.to_bytes()?;
+        let filter_param_bytes: Vec<u8> = filter.to_bytes()?;
         let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose();
 
-        Some((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
+        Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }
 
     /// Responds to a client query.
@@ -69,15 +71,15 @@ impl Server {
     /// # Returns
     ///
     /// An `Option` containing the response as a byte vector. Returns `None` if any error occurs during response computation or serialization.
-    pub fn respond(&self, query: &[u8]) -> Option<Vec<u8>> {
-        let query_vector = Matrix::from_bytes(query).ok()?;
+    pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
+        let query_vector = Matrix::from_bytes(query)?;
         let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
 
-        response_vector.to_bytes().ok()
+        response_vector.to_bytes()
     }
 
     /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.
-    fn find_encoded_db_matrix_element_bit_length(db_entry_count: usize) -> Option<usize> {
+    fn find_encoded_db_matrix_element_bit_length(db_entry_count: usize) -> Result<usize, ChalametPIRError> {
         const MIN_MAT_ELEM_BIT_LEN: usize = 4;
         const Q: usize = u32::MAX as usize + 1;
 
@@ -98,9 +100,9 @@ impl Server {
 
         // This should allow `db_entry_count` to be at max 2^42 (~4 trillion entries)
         if branch_opt_util::likely(mat_elem_bit_len >= MIN_MAT_ELEM_BIT_LEN) {
-            Some(mat_elem_bit_len)
+            Ok(mat_elem_bit_len)
         } else {
-            None
+            Err(ChalametPIRError::KVDatabaseSizeTooLarge)
         }
     }
 }

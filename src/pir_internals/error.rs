@@ -1,6 +1,6 @@
 use std::{error::Error, fmt::Display};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ChalametPIRError {
     // Matrix
     InvalidMatrixDimension,
@@ -21,6 +21,15 @@ pub enum ChalametPIRError {
     DecodedRowNotPrependedWithDigestOfKey,
     FailedToSerializeFilterToBytes(String),
     FailedToDeserializeFilterFromBytes(String),
+
+    // PIR
+    KVDatabaseSizeTooLarge,
+    InvalidHintMatrix,
+    PendingQueryExistsForKey,
+    PendingQueryDoesNotExistForKey,
+    ArithmeticOverflowAddingQueryIndicator,
+    UnsupportedArityForBinaryFuseFilter,
+    InvalidResponseVector,
 }
 
 impl Display for ChalametPIRError {
@@ -49,6 +58,14 @@ impl Display for ChalametPIRError {
             Self::DecodedRowNotPrependedWithDigestOfKey => write!(f, "Decoded row doesn't have digest of key prepended to it"),
             Self::FailedToSerializeFilterToBytes(e) => write!(f, "Binary fuse filter serialization failed with: {}", e),
             Self::FailedToDeserializeFilterFromBytes(e) => write!(f, "Binary fuse filter deserialization failed with: {}", e),
+
+            Self::KVDatabaseSizeTooLarge => write!(f, "Key Value database is too large, it can have at max 2^42 entries."),
+            Self::InvalidHintMatrix => write!(f, "Unexpected number of rows in hint matrix."),
+            Self::PendingQueryExistsForKey => write!(f, "Pending query for this key found in internal client state."),
+            Self::PendingQueryDoesNotExistForKey => write!(f, "No pending query for this key in internal client state."),
+            Self::ArithmeticOverflowAddingQueryIndicator => write!(f, "Encountered arithmetic overflow while adding query indicator to the query vector 'b'."),
+            Self::UnsupportedArityForBinaryFuseFilter => write!(f, "Binary Fuse Filter supports arity of either 3 or 4."),
+            Self::InvalidResponseVector => write!(f, "Unexpected dimension of response vector."),
         }
     }
 }
