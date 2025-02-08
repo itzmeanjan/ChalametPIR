@@ -125,7 +125,7 @@ fn main() {
     db.insert(b"banana", b"yellow");
 
     // Server setup (offline phase)
-    let mut rng = ChaCha8Rng::from_entropy();
+    let mut rng = ChaCha8Rng::from_os_rng();
     let mut seed_μ = [0u8; 32]; // You'll want to generate a cryptographically secure random seed
     rng.fill_bytes(&mut seed_μ);
 
@@ -136,14 +136,14 @@ fn main() {
 
     // Client query (online phase)
     let key = b"banana";
-    if let Some(query) = client.query(key) {
+    if let Ok(query) = client.query(key) {
         // Send `query` to the server
 
         // Server response (online phase)
         let response = server.respond(&query).expect("Server failed to respond");
 
         // Client processes the response (online phase)
-        if let Some(value) = client.process_response(key, &response) {
+        if let Ok(value) = client.process_response(key, &response) {
             println!("Retrieved value: '{}'", String::from_utf8_lossy(&value)); // Should print "yellow"
         } else {
             println!("Failed to retrieve value.");
