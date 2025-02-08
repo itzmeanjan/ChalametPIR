@@ -354,8 +354,8 @@ impl Matrix {
 
                 for i in (0..filter.filter_size).rev() {
                     let hash = reverse_order[i];
-                    let key = *hash_to_key.get(&hash).ok_or(ChalametPIRError::KeyNotFoundInMap)?;
-                    let value = *db.get(key).ok_or(ChalametPIRError::KeyNotFoundInMap)?;
+                    let key = unsafe { *hash_to_key.get(&hash).unwrap_unchecked() };
+                    let value = unsafe { *db.get(key).unwrap_unchecked() };
 
                     let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
@@ -487,8 +487,8 @@ impl Matrix {
 
                 for i in (0..filter.filter_size).rev() {
                     let hash = reverse_order[i];
-                    let key = *hash_to_key.get(&hash).ok_or(ChalametPIRError::KeyNotFoundInMap)?;
-                    let value = *db.get(key).ok_or(ChalametPIRError::KeyNotFoundInMap)?;
+                    let key = unsafe { *hash_to_key.get(&hash).unwrap_unchecked() };
+                    let value = unsafe { *db.get(key).unwrap_unchecked() };
 
                     let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 

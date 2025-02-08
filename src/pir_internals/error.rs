@@ -16,7 +16,6 @@ pub enum ChalametPIRError {
     EmptyKVDatabase,
     ExhaustedAllAttemptsToBuild3WiseXorFilter(usize),
     ExhaustedAllAttemptsToBuild4WiseXorFilter(usize),
-    KeyNotFoundInMap,
     RowNotDecodable,
     DecodedRowNotPrependedWithDigestOfKey,
     FailedToSerializeFilterToBytes(String),
@@ -53,7 +52,6 @@ impl Display for ChalametPIRError {
             Self::ExhaustedAllAttemptsToBuild4WiseXorFilter(max_num_attempts) => {
                 write!(f, "Exhausted '{}' attempts to build 4-wise XOR binary fuse filter", max_num_attempts)
             }
-            Self::KeyNotFoundInMap => write!(f, "Key is not present in hashmap"),
             Self::RowNotDecodable => write!(f, "Encoded KV database matrix's row can't be decoded"),
             Self::DecodedRowNotPrependedWithDigestOfKey => write!(f, "Decoded row doesn't have digest of key prepended to it"),
             Self::FailedToSerializeFilterToBytes(e) => write!(f, "Binary fuse filter serialization failed with: {}", e),
