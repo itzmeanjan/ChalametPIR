@@ -8,6 +8,9 @@ use crate::{
 };
 use std::collections::HashMap;
 
+/// Represents the server in the Keyword Private Information Retrieval (PIR) scheme ChalametPIR.
+///
+/// The server stores an encoded database matrix, in transposed form, to optimize query response time.
 #[derive(Clone)]
 pub struct Server {
     /// This matrix is kept in transposed form to optimize memory access pattern in vector matrix multiplication of server-respond function.

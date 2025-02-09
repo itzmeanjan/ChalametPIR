@@ -10,11 +10,15 @@ use crate::{
 };
 use std::collections::HashMap;
 
+/// Represents a PIR query. This struct is used to store secret vector `c`, which is used to recover value from PIR server response.
 #[derive(Clone)]
 pub struct Query {
     vec_c: Matrix,
 }
 
+/// Represents a client, performing Chalamet Private Information Retrieval (PIR) queries.
+///
+/// This struct holds the necessary data and methods for setting up a PIR client, generating PIR queries, processing PIR server response, privately fetching value associated with queried key.
 #[derive(Clone)]
 pub struct Client {
     pub_mat_a: Matrix,
