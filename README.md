@@ -113,7 +113,7 @@ chalamet_pir = "=0.2.0"
 Then, let's code a very simple keyword PIR scheme:
 
 ```rust
-use chalamet_pir::{client::Client, server::Server};
+use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -126,7 +126,7 @@ fn main() {
 
     // Server setup (offline phase)
     let mut rng = ChaCha8Rng::from_os_rng();
-    let mut seed_μ = [0u8; 32]; // You'll want to generate a cryptographically secure random seed
+    let mut seed_μ = [0u8; SEED_BYTE_LEN]; // You'll want to generate a cryptographically secure random seed
     rng.fill_bytes(&mut seed_μ);
 
     let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, db.clone()).expect("Server setup failed");

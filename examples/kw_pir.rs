@@ -1,4 +1,4 @@
-use chalamet_pir::{client::Client, server::Server};
+use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -77,7 +77,7 @@ fn main() {
     println!("Arity of Binary Fuse Filter               : {}", ARITY);
 
     // Sample seed for producing public LWE matrix A.
-    let mut seed_μ = [0u8; chalamet_pir::SEED_BYTE_LEN];
+    let mut seed_μ = [0u8; SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     // Setup PIR server, for given KV database.
