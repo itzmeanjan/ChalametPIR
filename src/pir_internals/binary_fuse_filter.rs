@@ -523,23 +523,27 @@ pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
     hasher.update(key);
     let digest_bytes = hasher.finalize();
 
-    [
-        u64::from_le_bytes(digest_bytes[..8].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[8..16].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[16..24].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[24..].try_into().unwrap()),
-    ]
+    unsafe {
+        [
+            u64::from_le_bytes(digest_bytes[..8].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[8..16].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[16..24].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[24..].try_into().unwrap_unchecked()),
+        ]
+    }
 }
 
 /// Collects inspiration from https://github.com/claucece/chalamet/blob/515ff1479940a2917ad247acb6ab9e6d27e139a1/bff-modp/src/prelude/mod.rs#L43-L62.
 #[inline(always)]
 pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
-    let seed_words = [
-        u64::from_le_bytes(seed[..8].try_into().unwrap()),
-        u64::from_le_bytes(seed[8..16].try_into().unwrap()),
-        u64::from_le_bytes(seed[16..24].try_into().unwrap()),
-        u64::from_le_bytes(seed[24..].try_into().unwrap()),
-    ];
+    let seed_words = unsafe {
+        [
+            u64::from_le_bytes(seed[..8].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[8..16].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[16..24].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[24..].try_into().unwrap_unchecked()),
+        ]
+    };
 
     key.iter()
         .map(|&k| {
