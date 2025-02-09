@@ -6,13 +6,14 @@ use crate::{client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
+use test_case::test_case;
 
-#[test]
-fn test_keyword_pir_with_3_wise_xor_filter() {
-    const NUM_KV_PAIRS: usize = 2usize.pow(12);
+#[test_case(2usize.pow(12); "A key-value database with power of 2 many entries")]
+#[test_case(2usize.pow(12) + 1; "A key-value database with non-power of 2 many entries")]
+fn test_keyword_pir_with_3_wise_xor_filter(num_kv_pairs_in_db: usize) {
     const ARITY: u32 = 3;
 
-    let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
+    let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
     let mut rng = ChaCha8Rng::from_os_rng();
@@ -58,12 +59,12 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
     }
 }
 
-#[test]
-fn test_keyword_pir_with_4_wise_xor_filter() {
-    const NUM_KV_PAIRS: usize = 2usize.pow(12);
+#[test_case(2usize.pow(12); "A key-value database with power of 2 many entries")]
+#[test_case(2usize.pow(12) + 1; "A key-value database with non-power of 2 many entries")]
+fn test_keyword_pir_with_4_wise_xor_filter(num_kv_pairs_in_db: usize) {
     const ARITY: u32 = 4;
 
-    let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
+    let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
     let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
     let mut rng = ChaCha8Rng::from_os_rng();
