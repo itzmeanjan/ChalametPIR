@@ -1,6 +1,6 @@
 [package]
 name = "chalamet_pir"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 resolver = "2"
 rust-version = "1.84.0"
@@ -24,6 +24,7 @@ rayon = "=1.10.0"
 [dev-dependencies]
 divan = "=0.1.17"
 unicode-xid = "=0.2.6"
+test-case = "=3.3.1"
 
 [[bench]]
 name = "offline_phase"
@@ -41,6 +42,7 @@ mutate_internal_client_state = []
 inherits = "release"
 codegen-units = 1
 lto = "thin"
+panic = "abort"
 
 [profile.test-release]
 inherits = "release"

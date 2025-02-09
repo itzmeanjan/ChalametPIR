@@ -1,3 +1,5 @@
+use super::error::ChalametPIRError;
+use crate::pir_internals::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
@@ -28,18 +30,18 @@ impl BinaryFuseFilter {
     ///
     /// # Returns
     ///
-    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
-    /// Returns None if the filter could not be constructed within the given number of attempts.
+    /// A Result containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns an error if the filter could not be constructed within the given number of attempts or the key-value database is empty.
     pub fn construct_3_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
+    ) -> Result<BinaryFuseFilterIntermediateStageResult<'a>, ChalametPIRError> {
         const ARITY: u32 = 3;
 
         let db_size = db.len();
-        if db_size == 0 {
-            return None;
+        if branch_opt_util::unlikely(db_size == 0) {
+            return Err(ChalametPIRError::EmptyKVDatabase);
         }
 
         let segment_length = segment_length::<ARITY>(db_size as u32).min(1u32 << 18);
@@ -204,11 +206,11 @@ impl BinaryFuseFilter {
             t2hash.fill(0);
         }
 
-        if !done {
-            return None;
+        if branch_opt_util::unlikely(!done) {
+            return Err(ChalametPIRError::ExhaustedAllAttemptsToBuild3WiseXorFilter(max_attempt_count));
         }
 
-        Some((
+        Ok((
             BinaryFuseFilter {
                 seed,
                 arity: ARITY,
@@ -234,18 +236,18 @@ impl BinaryFuseFilter {
     ///
     /// # Returns
     ///
-    /// An Option containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
-    /// Returns None if the filter could not be constructed within the given number of attempts.
+    /// A Result containing the constructed BinaryFuseFilter, the reverse order of the inserted data, the reverse hash values, and a mapping from hash values to keys.
+    /// Returns an error if the filter could not be constructed within the given number of attempts or the key-value database is empty.
     pub fn construct_4_wise_xor_filter<'a>(
         db: &HashMap<&'a [u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<BinaryFuseFilterIntermediateStageResult<'a>> {
+    ) -> Result<BinaryFuseFilterIntermediateStageResult<'a>, ChalametPIRError> {
         const ARITY: u32 = 4;
 
         let db_size = db.len();
-        if db_size == 0 {
-            return None;
+        if branch_opt_util::unlikely(db_size == 0) {
+            return Err(ChalametPIRError::EmptyKVDatabase);
         }
 
         let segment_length = segment_length::<ARITY>(db_size as u32).min(1u32 << 18);
@@ -422,11 +424,11 @@ impl BinaryFuseFilter {
             t2hash.fill(0);
         }
 
-        if !done {
-            return None;
+        if branch_opt_util::unlikely(!done) {
+            return Err(ChalametPIRError::ExhaustedAllAttemptsToBuild4WiseXorFilter(max_attempt_count));
         }
 
-        Some((
+        Ok((
             BinaryFuseFilter {
                 seed,
                 arity: ARITY,
@@ -447,12 +449,12 @@ impl BinaryFuseFilter {
         ((self.num_fingerprints as f64) * (self.mat_elem_bit_len as f64)) / (self.filter_size as f64)
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
+        bincode::serialize(&self).map_err(|err| ChalametPIRError::FailedToSerializeFilterToBytes(err.to_string()))
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, String> {
-        bincode::deserialize(bytes).map_err(|err| format!("Failed to deserialize: {}", err))
+    pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, ChalametPIRError> {
+        bincode::deserialize(bytes).map_err(|err| ChalametPIRError::FailedToDeserializeFilterFromBytes(err.to_string()))
     }
 }
 
@@ -521,22 +523,27 @@ pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
     hasher.update(key);
     let digest_bytes = hasher.finalize();
 
-    [
-        u64::from_le_bytes(digest_bytes[..8].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[8..16].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[16..24].try_into().unwrap()),
-        u64::from_le_bytes(digest_bytes[24..].try_into().unwrap()),
-    ]
+    unsafe {
+        [
+            u64::from_le_bytes(digest_bytes[..8].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[8..16].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[16..24].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(digest_bytes[24..].try_into().unwrap_unchecked()),
+        ]
+    }
 }
 
+/// Collects inspiration from https://github.com/claucece/chalamet/blob/515ff1479940a2917ad247acb6ab9e6d27e139a1/bff-modp/src/prelude/mod.rs#L43-L62.
 #[inline(always)]
 pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
-    let seed_words = [
-        u64::from_le_bytes(seed[..8].try_into().unwrap()),
-        u64::from_le_bytes(seed[8..16].try_into().unwrap()),
-        u64::from_le_bytes(seed[16..24].try_into().unwrap()),
-        u64::from_le_bytes(seed[24..].try_into().unwrap()),
-    ];
+    let seed_words = unsafe {
+        [
+            u64::from_le_bytes(seed[..8].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[8..16].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[16..24].try_into().unwrap_unchecked()),
+            u64::from_le_bytes(seed[24..].try_into().unwrap_unchecked()),
+        ]
+    };
 
     key.iter()
         .map(|&k| {
@@ -547,6 +554,7 @@ pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
 
+/// Collects inspiration from https://github.com/FastFilter/xor_singleheader/blob/a5a3630619f375a5610938bdfd61ec7e9f9fed1c/include/binaryfusefilter.h#L154-L164.
 #[inline(always)]
 pub const fn hash_batch_for_3_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32) {
     let segment_length_mask = segment_length - 1;
@@ -562,6 +570,7 @@ pub const fn hash_batch_for_3_wise_xor_filter(hash: u64, segment_length: u32, se
     (h0, h1, h2)
 }
 
+/// Collects inspiration from https://github.com/FastFilter/fastfilter_cpp/blob/5df1dc5063702945f6958e4bda445dd082aed366/src/xorfilter/4wise_xor_binary_fuse_filter_lowmem.h#L57-L67.
 #[inline(always)]
 pub const fn hash_batch_for_4_wise_xor_filter(hash: u64, segment_length: u32, segment_count_length: u32) -> (u32, u32, u32, u32) {
     let segment_length_mask = segment_length - 1;

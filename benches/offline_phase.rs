@@ -60,7 +60,7 @@ fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
     let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
     let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
+    let mut seed_μ = [0u8; chalamet_pir::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     bencher
@@ -75,7 +75,7 @@ fn client_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
     let kv = generate_random_kv_database(&mut rng, db_config.db_entry_count, db_config.key_byte_len, db_config.value_byte_len);
     let kv_as_ref = kv.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
+    let mut seed_μ = [0u8; chalamet_pir::SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     let (_, hint_bytes, filter_param_bytes) = server::Server::setup::<ARITY>(&seed_μ, kv_as_ref).expect("Server setup failed");

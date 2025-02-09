@@ -1,18 +1,24 @@
-pub use crate::pir_internals::params::SEED_BYTE_LEN;
-use crate::pir_internals::{
-    binary_fuse_filter::{self, BinaryFuseFilter},
-    branch_opt_util,
-    matrix::Matrix,
-    params::{HASHED_KEY_BYTE_LEN, LWE_DIMENSION},
-    serialization,
+use crate::{
+    pir_internals::{
+        binary_fuse_filter::{self, BinaryFuseFilter},
+        branch_opt_util,
+        matrix::Matrix,
+        params::{HASHED_KEY_BYTE_LEN, LWE_DIMENSION, SEED_BYTE_LEN},
+        serialization,
+    },
+    ChalametPIRError,
 };
 use std::collections::HashMap;
 
+/// Represents a PIR query. This struct is used to store secret vector `c`, which is used to recover value from PIR server response.
 #[derive(Clone)]
 pub struct Query {
     vec_c: Matrix,
 }
 
+/// Represents a client, performing Chalamet Private Information Retrieval (PIR) queries.
+///
+/// This struct holds the necessary data and methods for setting up a PIR client, generating PIR queries, processing PIR server response, privately fetching value associated with queried key.
 #[derive(Clone)]
 pub struct Client {
     pub_mat_a: Matrix,
@@ -22,7 +28,7 @@ pub struct Client {
 }
 
 impl Client {
-    /// Sets up a new keyword *P*rivate *I*nformation *R*etrieval client instance.
+    /// Sets up a new keyword **P**rivate **I**nformation **R**etrieval client instance.
     ///
     /// This function initializes a client object with the necessary parameters for performing private information retrieval (PIR) queries.
     /// It takes as input:
@@ -31,20 +37,20 @@ impl Client {
     /// * `hint_bytes`: A byte array representing the hint matrix M. This matrix is used to help reconstruct the result of the PIR query.
     /// * `filter_param_bytes`: A byte array containing the parameters for the underlying binary fuse filter in-use.
     ///
-    /// Errors can occur if the `BinaryFuseFilter` cannot be constructed from the provided bytes, or if matrix generation fails.  These errors will result in `None` being returned.
-    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Option<Client> {
-        let filter = BinaryFuseFilter::from_bytes(filter_param_bytes).ok()?;
+    /// Errors can occur if the `BinaryFuseFilter` cannot be constructed from the provided bytes, or if matrix generation fails.  These errors will result in a `ChalametPIRError` being returned.
+    pub fn setup(seed_μ: &[u8; SEED_BYTE_LEN], hint_bytes: &[u8], filter_param_bytes: &[u8]) -> Result<Client, ChalametPIRError> {
+        let filter = BinaryFuseFilter::from_bytes(filter_param_bytes)?;
 
         let pub_mat_a_num_rows = LWE_DIMENSION;
         let pub_mat_a_num_cols = filter.num_fingerprints;
 
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
-        let hint_mat_m = Matrix::from_bytes(hint_bytes).ok()?;
+        let hint_mat_m = Matrix::from_bytes(hint_bytes)?;
         if branch_opt_util::unlikely(hint_mat_m.num_rows() != LWE_DIMENSION) {
-            return None;
+            return Err(ChalametPIRError::InvalidHintMatrix);
         }
 
-        Some(Client {
+        Ok(Client {
             pub_mat_a,
             hint_mat_m,
             filter,
@@ -55,20 +61,20 @@ impl Client {
     /// Used only for benchmarking. You are not supposed to use this.
     #[cfg(feature = "mutate_internal_client_state")]
     #[inline(always)]
-    pub fn discard_query(&mut self, key: &'a [u8]) -> Option<Query> {
+    pub fn discard_query(&mut self, key: &[u8]) -> Option<Query> {
         self.pending_queries.remove(key)
     }
 
     /// Used only for benchmarking. You are not supposed to use this.
     #[cfg(feature = "mutate_internal_client_state")]
     #[inline(always)]
-    pub fn insert_query(&mut self, key: &'a [u8], query: Query) {
-        self.pending_queries.insert(key, query);
+    pub fn insert_query(&mut self, key: &[u8], query: Query) {
+        self.pending_queries.insert(key.to_vec(), query);
     }
 
     /// Generates a PIR query for the specified key.
     ///
-    /// The query is added to the client's pending queries, awaiting a response. If a query for the same key already exists, this function returns `None`.
+    /// The query is added to the client's pending queries, awaiting a response. If a query for the same key already exists, this function returns an error.
     ///
     /// # Arguments
     ///
@@ -76,21 +82,21 @@ impl Client {
     ///
     /// # Returns
     ///
-    /// `Some(Vec<u8>)` containing the query bytes if successful, `None` otherwise. Failure can occur due to integer addition overflow during query generation, or if a query for the same key already exists.
-    pub fn query(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+    /// `Result<Vec<u8>, ChalametPIRError>` containing the query bytes if successful, or an error if a query for the same key already exists or if arithmetic overflow occurs during query generation.
+    pub fn query(&mut self, key: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         match self.filter.arity {
             3 => self.query_for_3_wise_xor_filter(key),
             4 => self.query_for_4_wise_xor_filter(key),
             _ => {
                 branch_opt_util::cold();
-                None
+                Err(ChalametPIRError::UnsupportedArityForBinaryFuseFilter)
             }
         }
     }
 
-    fn query_for_3_wise_xor_filter(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+    fn query_for_3_wise_xor_filter(&mut self, key: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
-            return None;
+            return Err(ChalametPIRError::PendingQueryExistsForKey);
         }
 
         let secret_vec_num_cols = LWE_DIMENSION;
@@ -110,34 +116,34 @@ impl Client {
 
         let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h0 as usize)] = added_val;
         }
 
         let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h1 as usize)] = added_val;
         }
 
         let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h2 as usize)] = added_val;
         }
 
-        let query_bytes = query_vec_b.to_bytes().ok()?;
+        let query_bytes = query_vec_b.to_bytes()?;
         self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
-        Some(query_bytes)
+        Ok(query_bytes)
     }
 
-    fn query_for_4_wise_xor_filter(&mut self, key: &[u8]) -> Option<Vec<u8>> {
+    fn query_for_4_wise_xor_filter(&mut self, key: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         if branch_opt_util::unlikely(self.pending_queries.contains_key(key)) {
-            return None;
+            return Err(ChalametPIRError::PendingQueryExistsForKey);
         }
 
         let secret_vec_num_cols = LWE_DIMENSION;
@@ -157,41 +163,42 @@ impl Client {
 
         let (added_val, flag) = query_vec_b[(0, h0 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h0 as usize)] = added_val;
         }
 
         let (added_val, flag) = query_vec_b[(0, h1 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h1 as usize)] = added_val;
         }
 
         let (added_val, flag) = query_vec_b[(0, h2 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h2 as usize)] = added_val;
         }
 
         let (added_val, flag) = query_vec_b[(0, h3 as usize)].overflowing_add(query_indicator);
         if branch_opt_util::unlikely(flag) {
-            return None;
+            return Err(ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
         } else {
             query_vec_b[(0, h3 as usize)] = added_val;
         }
 
-        let query_bytes = query_vec_b.to_bytes().ok()?;
+        let query_bytes = query_vec_b.to_bytes()?;
         self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
-        Some(query_bytes)
+        Ok(query_bytes)
     }
 
     /// Processes a response to a PIR query.
     ///
-    /// This function takes the key associated with a pending query and the received response bytes as input. It reconstructs the original data from the response, removes the query from the pending queries, and returns the result.
+    /// This function takes the key associated with a pending query and the received response bytes as input.
+    /// It reconstructs the original data from the response, removes the query from the pending queries, and returns the result.
     ///
     /// # Arguments
     ///
@@ -200,15 +207,15 @@ impl Client {
     ///
     /// # Returns
     ///
-    /// `Some(Vec<u8>)` containing the retrieved data if successful, `None` otherwise. Failure can occur if the response vector has an unexpected dimension, if decoding fails, or if the query is not found in `pending_queries`.
-    pub fn process_response(&mut self, key: &[u8], response_bytes: &[u8]) -> Option<Vec<u8>> {
+    /// `Result<Vec<u8>, ChalametPIRError>` containing the retrieved data if successful, or an error if the response vector has an unexpected dimension, if decoding fails, or if the query is not found in `pending_queries`.
+    pub fn process_response(&mut self, key: &[u8], response_bytes: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         match self.pending_queries.get(key) {
             Some(query) => {
                 let secret_vec_c = &query.vec_c;
 
-                let response_vector = Matrix::from_bytes(response_bytes).ok()?;
+                let response_vector = Matrix::from_bytes(response_bytes)?;
                 if branch_opt_util::unlikely(!(response_vector.num_rows() == 1 && response_vector.num_cols() == secret_vec_c.num_cols())) {
-                    return None;
+                    return Err(ChalametPIRError::InvalidResponseVector);
                 }
 
                 let rounding_factor = self.calculate_query_indicator();
@@ -236,7 +243,7 @@ impl Client {
                     .collect::<Vec<u32>>();
 
                 let value = match serialization::decode_kv_from_row(&recovered_row, self.filter.mat_elem_bit_len) {
-                    Some(mut decoded_kv) => {
+                    Ok(mut decoded_kv) => {
                         let mut hashed_key_as_bytes = [0u8; HASHED_KEY_BYTE_LEN];
 
                         hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
@@ -248,14 +255,14 @@ impl Client {
 
                         if branch_opt_util::likely(is_key_matching) {
                             decoded_kv.drain(..hashed_key_as_bytes.len());
-                            Some(decoded_kv)
+                            Ok(decoded_kv)
                         } else {
-                            None
+                            Err(ChalametPIRError::DecodedRowNotPrependedWithDigestOfKey)
                         }
                     }
-                    None => {
+                    Err(e) => {
                         branch_opt_util::cold();
-                        None
+                        Err(e)
                     }
                 };
 
@@ -264,7 +271,7 @@ impl Client {
             }
             None => {
                 branch_opt_util::cold();
-                None
+                Err(ChalametPIRError::PendingQueryDoesNotExistForKey)
             }
         }
     }

@@ -44,7 +44,7 @@ Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` serve
 `server_respond` | 18.58 milliseconds | 33.19 milliseconds | 0.56
 `client_process_response` | 11.69 microseconds | 16.82 microseconds | 0.7
 
-> ![NOTE]
+> [!NOTE]
 > In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
 
 So, the median bandwidth of the `server_respond` algorithm, which needs to traverse through the whole processed database, is
@@ -107,13 +107,13 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.1.0"
+chalamet_pir = "=0.2.0"
 ```
 
 Then, let's code a very simple keyword PIR scheme:
 
 ```rust
-use chalamet_pir::{client::Client, server::Server};
+use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -125,8 +125,8 @@ fn main() {
     db.insert(b"banana", b"yellow");
 
     // Server setup (offline phase)
-    let mut rng = ChaCha8Rng::from_entropy();
-    let mut seed_μ = [0u8; 32]; // You'll want to generate a cryptographically secure random seed
+    let mut rng = ChaCha8Rng::from_os_rng();
+    let mut seed_μ = [0u8; SEED_BYTE_LEN]; // You'll want to generate a cryptographically secure random seed
     rng.fill_bytes(&mut seed_μ);
 
     let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, db.clone()).expect("Server setup failed");
@@ -136,14 +136,14 @@ fn main() {
 
     // Client query (online phase)
     let key = b"banana";
-    if let Some(query) = client.query(key) {
+    if let Ok(query) = client.query(key) {
         // Send `query` to the server
 
         // Server response (online phase)
         let response = server.respond(&query).expect("Server failed to respond");
 
         // Client processes the response (online phase)
-        if let Some(value) = client.process_response(key, &response) {
+        if let Ok(value) = client.process_response(key, &response) {
             println!("Retrieved value: '{}'", String::from_utf8_lossy(&value)); // Should print "yellow"
         } else {
             println!("Failed to retrieve value.");

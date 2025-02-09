@@ -20,6 +20,8 @@ use std::{
 #[cfg(test)]
 use std::ops::Neg;
 
+use super::error::ChalametPIRError;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
     rows: usize,
@@ -37,17 +39,17 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
-    /// * `None` - If either rows or cols is zero or less.
-    pub fn new(rows: usize, cols: usize) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
+    ///     Returns an error if either rows or cols is zero.
+    pub fn new(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
-            Some(Matrix {
+            Ok(Matrix {
                 rows,
                 cols,
                 elems: vec![0; rows * cols],
             })
         } else {
-            None
+            Err(ChalametPIRError::InvalidMatrixDimension)
         }
     }
 
@@ -61,17 +63,17 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
-    /// * `None` - If either rows or cols is zero or less, or if the number of values does not match the number of required elements.
-    pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
+    ///     Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
+    pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             if branch_opt_util::likely(rows * cols == values.len()) {
-                Some(Matrix { rows, cols, elems: values })
+                Ok(Matrix { rows, cols, elems: values })
             } else {
-                None
+                Err(ChalametPIRError::InvalidNumberOfElementsInMatrix)
             }
         } else {
-            None
+            Err(ChalametPIRError::InvalidMatrixDimension)
         }
     }
 
@@ -96,11 +98,11 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - The resulting matrix (1xM) if the input is valid.
-    /// * `None` - If the input is invalid (self is not a row vector, or the dimensions are incompatible).
-    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
+    ///     Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
+    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
-            return None;
+            return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
         }
 
         let res_num_rows = self.rows;
@@ -118,7 +120,7 @@ impl Matrix {
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
-    /// Creates a new identity matrix with the given number of rows and columns.
+    /// Creates a new identity matrix of requested dimension.
     ///
     /// # Arguments
     ///
@@ -126,16 +128,20 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new identity matrix if the input is valid (rows is positive).
-    /// * `None` - If rows is zero or less.
-    pub fn identity(rows: usize) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
+    ///     Returns an error if rows is zero.
+    pub fn identity(rows: usize) -> Result<Matrix, ChalametPIRError> {
+        if branch_opt_util::unlikely(rows == 0) {
+            return Err(ChalametPIRError::InvalidMatrixDimension);
+        }
+
         let mut mat = Matrix::new(rows, rows)?;
 
         (0..rows).for_each(|idx| {
             mat[(idx, idx)] = 1;
         });
 
-        Some(mat)
+        Ok(mat)
     }
 
     /// Transposes the matrix.
@@ -144,7 +150,7 @@ impl Matrix {
     ///
     /// * `Matrix` - The transposed matrix.
     pub fn transpose(&self) -> Matrix {
-        let mut res = Matrix::new(self.cols, self.rows).unwrap();
+        let mut res = unsafe { Matrix::new(self.cols, self.rows).unwrap_unchecked() };
 
         (0..self.cols)
             .flat_map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
@@ -165,9 +171,9 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new matrix if the input is valid (rows and cols are positive).
-    /// * `None` - If either rows or cols is zero or less.
-    pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
+    ///     Returns an error if either rows or cols is zero.
+    pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
         let mut hasher = Shake128::default();
         hasher.update(seed);
 
@@ -203,7 +209,7 @@ impl Matrix {
             cur_elem_idx += to_be_filled_num_elems;
         }
 
-        Some(mat)
+        Ok(mat)
     }
 
     /// Generates a row/ column vector with the given dimensions, where each element is sampled from a uniform ternary distribution {0, 1, -1}.
@@ -216,11 +222,11 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Matrix)` - A new row/ column vector if the input is valid (rows or cols is 1).
-    /// * `None` - If neither rows nor cols is 1.
-    pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Option<Matrix> {
+    /// * `Result<Matrix, ChalametPIRError>` - A new row/ column vector if the input is valid (rows or cols is 1).
+    ///     Returns an error if neither rows nor cols is 1.
+    pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
-            return None;
+            return Err(ChalametPIRError::InvalidDimensionForVector);
         }
 
         const TERNARY_INTERVAL_SIZE: u32 = (u32::MAX - 2) / 3;
@@ -251,27 +257,26 @@ impl Matrix {
             elem_idx += 1;
         }
 
-        Some(vec)
+        Ok(vec)
     }
 
-    /// Encodes a key-value database, as a matrix, using many column-wise Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using column-wise Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode.  Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
+    ) -> Result<(Matrix, binary_fuse_filter::BinaryFuseFilter), ChalametPIRError> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {
@@ -293,10 +298,14 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
-    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_encoded_kv_database<const ARITY: u32>(
+        &self,
+        key: &[u8],
+        filter: &binary_fuse_filter::BinaryFuseFilter,
+    ) -> Result<Vec<u8>, ChalametPIRError> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {
@@ -309,29 +318,28 @@ impl Matrix {
         }
     }
 
-    /// Encodes a key-value database, as a matrix, using 3-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using 3-wise XOR Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode. Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
+    ) -> Result<(Matrix, binary_fuse_filter::BinaryFuseFilter), ChalametPIRError> {
         match binary_fuse_filter::BinaryFuseFilter::construct_3_wise_xor_filter(&db, mat_elem_bit_len, max_attempt_count) {
-            Some((filter, reverse_order, reverse_h, hash_to_key)) => {
+            Ok((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = 256;
 
-                let max_value_byte_len = db.values().map(|v| v.len()).max()?;
+                let max_value_byte_len = unsafe { db.values().map(|v| v.len()).max().unwrap_unchecked() };
                 let max_value_bit_len = max_value_byte_len * 8;
 
                 let rows = filter.num_fingerprints;
@@ -344,8 +352,8 @@ impl Matrix {
 
                 for i in (0..filter.filter_size).rev() {
                     let hash = reverse_order[i];
-                    let key = *hash_to_key.get(&hash)?;
-                    let value = *db.get(key)?;
+                    let key = unsafe { *hash_to_key.get(&hash).unwrap_unchecked() };
+                    let value = unsafe { *db.get(key).unwrap_unchecked() };
 
                     let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
@@ -383,11 +391,11 @@ impl Matrix {
                     mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
                 }
 
-                Some((mat, filter))
+                Ok((mat, filter))
             }
-            None => {
+            Err(e) => {
                 branch_opt_util::cold();
-                None
+                Err(e)
             }
         }
     }
@@ -401,10 +409,10 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
-    fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
@@ -420,7 +428,7 @@ impl Matrix {
             .collect::<Vec<u32>>();
 
         match serialization::decode_kv_from_row(&recovered_row, filter.mat_elem_bit_len) {
-            Some(mut decoded_kv) => {
+            Ok(mut decoded_kv) => {
                 let mut hashed_key_as_bytes = [0u8; HASHED_KEY_BYTE_LEN];
 
                 hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
@@ -430,41 +438,40 @@ impl Matrix {
 
                 if branch_opt_util::likely((0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0) {
                     decoded_kv.drain(..hashed_key_as_bytes.len());
-                    Some(decoded_kv)
+                    Ok(decoded_kv)
                 } else {
-                    None
+                    Err(ChalametPIRError::DecodedRowNotPrependedWithDigestOfKey)
                 }
             }
-            None => {
+            Err(e) => {
                 branch_opt_util::cold();
-                None
+                Err(e)
             }
         }
     }
 
-    /// Encodes a key-value database, as a matrix, using 4-wise XOR Binary Fuse Filters s.t. each binary fuse filter column
-    /// represents some bits of (hashed-key, value) pair. A whole row represents (256 -bit hashed-key, value) pair.
+    /// Encodes a key-value database as a matrix using 4-wise XOR Binary Fuse Filters. Each filter column represents bits of a (hashed-key, value) pair; each row represents a complete (256-bit hashed-key, value) pair.
     ///
     /// # Arguments
     ///
-    /// * `db` - The key-value database to create the matrix from. Note, neither all keys nor all values need to be of equal byte length.
-    /// * `mat_elem_bit_len` - The number of bits per element in the matrix.
+    /// * `db` - The key-value database to encode. Keys and values need not be of uniform length.
+    /// * `mat_elem_bit_len` - The number of bits per element in the resulting matrix.
     /// * `max_attempt_count` - The maximum number of attempts to construct the filter.
     ///
     /// # Returns
     ///
-    /// * `Some((Matrix, BinaryFuseFilter))` - A tuple containing the resulting matrix and the Binary Fuse Filter if successful.
-    /// * `None` - If the filter construction fails or if an error occurs during matrix creation.
+    /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
+    ///     Returns an error if filter construction fails.
     fn from_kv_database_with_4_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
         max_attempt_count: usize,
-    ) -> Option<(Matrix, binary_fuse_filter::BinaryFuseFilter)> {
+    ) -> Result<(Matrix, binary_fuse_filter::BinaryFuseFilter), ChalametPIRError> {
         match binary_fuse_filter::BinaryFuseFilter::construct_4_wise_xor_filter(&db, mat_elem_bit_len, max_attempt_count) {
-            Some((filter, reverse_order, reverse_h, hash_to_key)) => {
+            Ok((filter, reverse_order, reverse_h, hash_to_key)) => {
                 const HASHED_KEY_BIT_LEN: usize = HASHED_KEY_BYTE_LEN * 8;
 
-                let max_value_byte_len = db.values().map(|v| v.len()).max()?;
+                let max_value_byte_len = unsafe { db.values().map(|v| v.len()).max().unwrap_unchecked() };
                 let max_value_bit_len = max_value_byte_len * 8;
 
                 let rows = filter.num_fingerprints;
@@ -477,8 +484,8 @@ impl Matrix {
 
                 for i in (0..filter.filter_size).rev() {
                     let hash = reverse_order[i];
-                    let key = *hash_to_key.get(&hash)?;
-                    let value = *db.get(key)?;
+                    let key = unsafe { *hash_to_key.get(&hash).unwrap_unchecked() };
+                    let value = unsafe { *db.get(key).unwrap_unchecked() };
 
                     let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
@@ -523,11 +530,11 @@ impl Matrix {
                     mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
                 }
 
-                Some((mat, filter))
+                Ok((mat, filter))
             }
-            None => {
+            Err(e) => {
                 branch_opt_util::cold();
-                None
+                Err(e)
             }
         }
     }
@@ -541,10 +548,10 @@ impl Matrix {
     ///
     /// # Returns
     ///
-    /// * `Some(Vec<u8>)` - The value associated with the key if found.
-    /// * `None` - If the key is not found or if an error occurs during value recovery.
+    /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
+    ///     Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
-    fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Option<Vec<u8>> {
+    fn recover_value_from_4_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
 
         let hashed_key = binary_fuse_filter::hash_of_key(key);
@@ -561,7 +568,7 @@ impl Matrix {
             .collect::<Vec<u32>>();
 
         match serialization::decode_kv_from_row(&recovered_row, filter.mat_elem_bit_len) {
-            Some(mut decoded_kv) => {
+            Ok(mut decoded_kv) => {
                 let mut hashed_key_as_bytes = [0u8; HASHED_KEY_BYTE_LEN];
 
                 hashed_key_as_bytes[..8].copy_from_slice(&hashed_key[0].to_le_bytes());
@@ -571,25 +578,25 @@ impl Matrix {
 
                 if branch_opt_util::likely((0..hashed_key_as_bytes.len()).fold(0u8, |acc, idx| acc ^ (decoded_kv[idx] ^ hashed_key_as_bytes[idx])) == 0) {
                     decoded_kv.drain(..hashed_key_as_bytes.len());
-                    Some(decoded_kv)
+                    Ok(decoded_kv)
                 } else {
-                    None
+                    Err(ChalametPIRError::DecodedRowNotPrependedWithDigestOfKey)
                 }
             }
-            None => {
+            Err(e) => {
                 branch_opt_util::cold();
-                None
+                Err(e)
             }
         }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, String> {
-        bincode::serialize(&self).map_err(|err| format!("Failed to serialize: {}", err))
+    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
+        bincode::serialize(&self).map_err(|e| ChalametPIRError::FailedToSerializeMatrixToBytes(e.to_string()))
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, String> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, ChalametPIRError> {
         bincode::deserialize(bytes).map_or_else(
-            |e| Err(format!("Failed to deserialize: {}", e)),
+            |e| Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes(e.to_string())),
             |v: Matrix| {
                 let expected_num_elems = v.num_rows() * v.num_cols();
                 let actual_num_elems = v.num_elems();
@@ -597,7 +604,7 @@ impl Matrix {
                 if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
                     Ok(v)
                 } else {
-                    Err("Number of rows/ cols and number of elements do not match !".to_string())
+                    Err(ChalametPIRError::InvalidNumberOfElementsInMatrix)
                 }
             },
         )
@@ -623,7 +630,7 @@ impl IndexMut<(usize, usize)> for Matrix {
 }
 
 impl Mul for Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     #[inline(always)]
     fn mul(self, rhs: Self) -> Self::Output {
@@ -632,11 +639,11 @@ impl Mul for Matrix {
 }
 
 impl<'b> Mul<&'b Matrix> for &Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     fn mul(self, rhs: &'b Matrix) -> Self::Output {
         if branch_opt_util::unlikely(self.cols != rhs.rows) {
-            return None;
+            return Err(ChalametPIRError::IncompatibleDimensionForMatrixMultiplication);
         }
 
         let mut res_elems = vec![0u32; self.rows * rhs.cols];
@@ -653,7 +660,7 @@ impl<'b> Mul<&'b Matrix> for &Matrix {
 }
 
 impl Add for Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     #[inline(always)]
     fn add(self, rhs: Self) -> Self::Output {
@@ -662,11 +669,11 @@ impl Add for Matrix {
 }
 
 impl<'b> Add<&'b Matrix> for &Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     fn add(self, rhs: &'b Matrix) -> Self::Output {
         if branch_opt_util::unlikely(!(self.rows == rhs.rows && self.cols == rhs.cols)) {
-            return None;
+            return Err(ChalametPIRError::IncompatibleDimensionForMatrixAddition);
         }
 
         let mut res_elems = vec![0u32; self.rows * rhs.cols];
@@ -681,7 +688,7 @@ impl<'b> Add<&'b Matrix> for &Matrix {
 
 #[cfg(test)]
 impl Neg for Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     #[inline(always)]
     fn neg(self) -> Self::Output {
@@ -691,7 +698,7 @@ impl Neg for Matrix {
 
 #[cfg(test)]
 impl<'a> Neg for &'a Matrix {
-    type Output = Option<Matrix>;
+    type Output = Result<Matrix, ChalametPIRError>;
 
     fn neg(self) -> Self::Output {
         let mut res = Matrix::new(self.rows, self.cols)?;
@@ -700,13 +707,13 @@ impl<'a> Neg for &'a Matrix {
             res.elems[idx] = self.elems[idx].wrapping_neg();
         });
 
-        Some(res)
+        Ok(res)
     }
 }
 
 #[cfg(test)]
 pub mod test {
-    use crate::{client::SEED_BYTE_LEN, pir_internals::matrix::Matrix};
+    use crate::{pir_internals::matrix::Matrix, SEED_BYTE_LEN};
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;

@@ -1,7 +1,4 @@
-use chalamet_pir::{
-    client::Client,
-    server::{self, Server},
-};
+use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -80,7 +77,7 @@ fn main() {
     println!("Arity of Binary Fuse Filter               : {}", ARITY);
 
     // Sample seed for producing public LWE matrix A.
-    let mut seed_μ = [0u8; server::SEED_BYTE_LEN];
+    let mut seed_μ = [0u8; SEED_BYTE_LEN];
     rng.fill_bytes(&mut seed_μ);
 
     // Setup PIR server, for given KV database.
@@ -103,20 +100,20 @@ fn main() {
         let is_random_key_in_db = kv_db.contains_key(&random_key);
 
         let key_as_bytes = random_key.to_le_bytes();
-        if let Some(query) = client_handle.query(&key_as_bytes.as_slice()) {
+        if let Ok(query) = client_handle.query(&key_as_bytes.as_slice()) {
             if num_keys_quried == 0 {
                 println!("Query size                                : {}", format_bytes(query.len()));
             }
 
             let respond_begin = Instant::now();
-            if let Some(response) = server_handle.respond(query.as_slice()) {
+            if let Ok(response) = server_handle.respond(query.as_slice()) {
                 let respond_end = Instant::now();
 
                 if num_keys_quried == 0 {
                     println!("Response size                             : {}\n", format_bytes(response.len()));
                 }
 
-                if let Some(received_value_bytes) = client_handle.process_response(key_as_bytes.as_slice(), response.as_slice()) {
+                if let Ok(received_value_bytes) = client_handle.process_response(key_as_bytes.as_slice(), response.as_slice()) {
                     assert!(is_random_key_in_db);
                     let &expected_value = kv_db.get(&random_key).expect("Key must be present in the DB!");
 

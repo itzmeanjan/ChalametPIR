@@ -1,7 +1,6 @@
+use super::{branch_opt_util, error::ChalametPIRError};
 use sha3::{Digest, Sha3_256};
 use std::cmp::min;
-
-use super::branch_opt_util;
 
 /// Encodes a key-value pair into a row of 32-bit unsigned integers.
 ///
@@ -116,8 +115,8 @@ pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_c
 
 /// Decodes a key-value pair from a row of 32-bit unsigned integers.
 ///
-/// The key-value pair is interleaved in the row.  A boundary marker is used to denote where actual value bytes end.
-/// The function returns `None` if the row does not contain a valid key-value pair or if there is an error during decoding.
+/// The key-value pair is interleaved in the row. A boundary marker is used to denote where actual value bytes end.
+/// The function returns an error if the row does not contain a valid key-value pair or if there is an error during decoding.
 ///
 /// # Arguments
 ///
@@ -126,10 +125,9 @@ pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_c
 ///
 /// # Returns
 ///
-/// An optional vector of bytes representing the decoded key-value pair.  The key is the first 32 bytes, followed by the value.
-/// Returns `None` if decoding fails.
+/// A Result containing a vector of bytes representing the decoded key-value pair (hashed-key followed by value), or an error.
 #[inline]
-pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8>> {
+pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Result<Vec<u8>, ChalametPIRError> {
     let num_extractable_bits = (row.len() * mat_elem_bit_len) & 8usize.wrapping_neg();
     let num_bytes_to_represent_kv = num_extractable_bits / 8;
 
@@ -171,14 +169,14 @@ pub fn decode_kv_from_row(row: &[u32], mat_elem_bit_len: usize) -> Option<Vec<u8
 
             if branch_opt_util::likely(is_zeroed_post_boundary && boundary_idx_from_front > 32) {
                 kv.truncate(boundary_idx_from_front);
-                Some(kv)
+                Ok(kv)
             } else {
-                None
+                Err(ChalametPIRError::RowNotDecodable)
             }
         }
         None => {
             branch_opt_util::cold();
-            None
+            Err(ChalametPIRError::RowNotDecodable)
         }
     }
 }
