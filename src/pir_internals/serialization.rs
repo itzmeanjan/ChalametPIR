@@ -1,10 +1,10 @@
-use super::{branch_opt_util, error::ChalametPIRError};
-use sha3::{Digest, Sha3_256};
+use super::{branch_opt_util, error::ChalametPIRError, params};
 use std::cmp::min;
+use turboshake::TurboShake128;
 
 /// Encodes a key-value pair into a row of 32-bit unsigned integers.
 ///
-/// The key is hashed using SHA3-256, and both the hashed key and value are interleaved into the row.
+/// The key is hashed using TurboSHAKE128 xof, and both the 32 -bytes hashed key and value are interleaved into the row.
 /// A boundary marker is added to denote the end of valid value bytes. Remaining elements of the resulting row,
 /// if any, are filled with zeros.
 ///
@@ -21,11 +21,13 @@ use std::cmp::min;
 #[inline]
 pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_cols: usize) -> Vec<u32> {
     let hashed_key = {
-        let mut hasher = Sha3_256::new();
-        hasher.update(key);
+        let mut hasher = TurboShake128::default();
+        hasher.absorb(key);
+        hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
 
-        let mut hashed_key = [0u8; 32];
-        hasher.finalize_into((&mut hashed_key).into());
+        let mut hashed_key = [0u8; params::HASHED_KEY_BYTE_LEN];
+        hasher.squeeze(&mut hashed_key);
+
         hashed_key
     };
 
@@ -225,10 +227,13 @@ pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
 
 #[cfg(test)]
 mod test {
-    use crate::pir_internals::serialization::{decode_kv_from_row, encode_kv_as_row};
+    use crate::pir_internals::{
+        params,
+        serialization::{decode_kv_from_row, encode_kv_as_row},
+    };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
-    use sha3::{Digest, Sha3_256};
+    use turboshake::TurboShake128;
 
     #[test]
     fn encode_kv_as_row_and_recover() {
@@ -253,11 +258,13 @@ mod test {
                     rng.fill_bytes(&mut value);
 
                     let hashed_key = {
-                        let mut hasher = Sha3_256::new();
-                        hasher.update(&key);
+                        let mut hasher = TurboShake128::default();
+                        hasher.absorb(&key);
+                        hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
 
-                        let mut hashed_key = [0u8; 32];
-                        hasher.finalize_into((&mut hashed_key).into());
+                        let mut hashed_key = [0u8; params::HASHED_KEY_BYTE_LEN];
+                        hasher.squeeze(&mut hashed_key);
+
                         hashed_key
                     };
 

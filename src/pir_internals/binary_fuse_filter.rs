@@ -1,10 +1,10 @@
-use super::error::ChalametPIRError;
+use super::{error::ChalametPIRError, params};
 use crate::pir_internals::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use std::collections::HashMap;
+use turboshake::TurboShake128;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BinaryFuseFilter {
@@ -519,9 +519,12 @@ pub const fn mix(key: u64, seed: u64) -> u64 {
 
 #[inline(always)]
 pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
-    let mut hasher = Sha3_256::new();
-    hasher.update(key);
-    let digest_bytes = hasher.finalize();
+    let mut hasher = TurboShake128::default();
+    hasher.absorb(key);
+    hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
+
+    let mut digest_bytes = [0u8; params::HASHED_KEY_BYTE_LEN];
+    hasher.squeeze(&mut digest_bytes);
 
     unsafe {
         [

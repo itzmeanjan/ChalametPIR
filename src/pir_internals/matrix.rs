@@ -7,14 +7,11 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
-use sha3::{
-    digest::{ExtendableOutput, Update, XofReader},
-    Shake128,
-};
 use std::{
     collections::HashMap,
     ops::{Add, Index, IndexMut, Mul},
 };
+use turboshake::TurboShake128;
 
 #[cfg(test)]
 use std::ops::Neg;
@@ -160,7 +157,7 @@ impl Matrix {
         res
     }
 
-    /// Generates a matrix with the given dimensions from a SEED_BYTE_LEN -byte seed using SHAKE128 xof.
+    /// Generates a matrix with the given dimensions from a SEED_BYTE_LEN -byte seed using TurboSHAKE128 xof.
     ///
     /// # Arguments
     ///
@@ -173,9 +170,9 @@ impl Matrix {
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
     ///     Returns an error if either rows or cols is zero.
     pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
-        let mut hasher = Shake128::default();
-        hasher.update(seed);
-        let mut reader = hasher.finalize_xof();
+        let mut hasher = TurboShake128::default();
+        hasher.absorb(seed);
+        hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
 
         let mut elems = vec![0u32; rows * cols];
         let elems_byte_len = elems.len() * std::mem::size_of::<u32>();
@@ -185,7 +182,7 @@ impl Matrix {
             let ptr_elem_bytes: *mut u8 = ptr_elems.cast();
             let elem_bytes = core::slice::from_raw_parts_mut(ptr_elem_bytes, elems_byte_len);
 
-            reader.read(elem_bytes);
+            hasher.squeeze(elem_bytes);
         }
 
         Matrix::from_values(rows, cols, elems)
