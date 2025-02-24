@@ -215,7 +215,7 @@ impl Matrix {
         let mut elem_idx = 0;
 
         while branch_opt_util::likely(elem_idx < num_elems) {
-            let mut val = u32::MAX;
+            let mut val = rng.random::<u32>();
 
             while branch_opt_util::unlikely(val > TERNARY_REJECTION_SAMPLING_MAX) {
                 val = rng.random::<u32>();
