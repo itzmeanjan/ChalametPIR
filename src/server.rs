@@ -1,10 +1,10 @@
 use crate::{
+    ChalametPIRError,
     pir_internals::{
         branch_opt_util,
         matrix::Matrix,
         params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
     },
-    ChalametPIRError,
 };
 use std::collections::HashMap;
 

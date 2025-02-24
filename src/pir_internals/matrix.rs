@@ -689,7 +689,7 @@ impl Neg for &Matrix {
 
 #[cfg(test)]
 pub mod test {
-    use crate::{pir_internals::matrix::Matrix, SEED_BYTE_LEN};
+    use crate::{SEED_BYTE_LEN, pir_internals::matrix::Matrix};
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;

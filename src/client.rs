@@ -1,4 +1,5 @@
 use crate::{
+    ChalametPIRError,
     pir_internals::{
         binary_fuse_filter::{self, BinaryFuseFilter},
         branch_opt_util,
@@ -6,7 +7,6 @@ use crate::{
         params::{HASHED_KEY_BYTE_LEN, LWE_DIMENSION, SEED_BYTE_LEN},
         serialization,
     },
-    ChalametPIRError,
 };
 use std::collections::HashMap;
 

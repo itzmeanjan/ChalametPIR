@@ -54,11 +54,7 @@ impl BinaryFuseFilter {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
                 let proposed = array_len.div_ceil(segment_length);
-                if proposed < ARITY {
-                    1
-                } else {
-                    proposed - (ARITY - 1)
-                }
+                if proposed < ARITY { 1 } else { proposed - (ARITY - 1) }
             };
             let array_len: u32 = (segment_count + ARITY - 1) * segment_length;
             (array_len as usize, segment_count)
@@ -260,11 +256,7 @@ impl BinaryFuseFilter {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
                 let proposed = array_len.div_ceil(segment_length);
-                if proposed < ARITY {
-                    1
-                } else {
-                    proposed - (ARITY - 1)
-                }
+                if proposed < ARITY { 1 } else { proposed - (ARITY - 1) }
             };
             let array_len: u32 = (segment_count + ARITY - 1) * segment_length;
             (array_len as usize, segment_count)
@@ -484,20 +476,12 @@ pub fn size_factor<const ARITY: u32>(size: u32) -> f64 {
 
 #[inline(always)]
 pub const fn mod3(x: u8) -> u8 {
-    if x > 2 {
-        x - 3
-    } else {
-        x
-    }
+    if x > 2 { x - 3 } else { x }
 }
 
 #[inline(always)]
 pub const fn mod4(x: u8) -> u8 {
-    if x > 3 {
-        x - 4
-    } else {
-        x
-    }
+    if x > 3 { x - 4 } else { x }
 }
 
 /// Computes a 64-bit MurmurHash3-like hash from a 64-bit input.

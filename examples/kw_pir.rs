@@ -1,4 +1,4 @@
-use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
+use chalamet_pir::{SEED_BYTE_LEN, client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;

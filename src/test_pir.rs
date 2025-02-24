@@ -1,7 +1,7 @@
 #![cfg(test)]
 
-use crate::pir_internals::matrix::test::generate_random_kv_database;
 use crate::ChalametPIRError;
+use crate::pir_internals::matrix::test::generate_random_kv_database;
 use crate::{client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
