@@ -1,9 +1,9 @@
 [package]
 name = "chalamet_pir"
 version = "0.2.0"
-edition = "2021"
+edition = "2024"
 resolver = "2"
-rust-version = "1.84.0"
+rust-version = "1.85.0"
 authors = ["Anjan Roy <hello@itzmeanjan.in>"]
 description = "Simple, Stateful, Single-Server Private Information Retrieval for Key-Value Databases"
 documentation = "https://github.com/itzmeanjan/ChalametPIR"
@@ -14,7 +14,7 @@ keywords = ["priv-info-retrieval", "lwe-pir", "frodo-pir", "chalamet-pir"]
 categories = ["cryptography", "data-structures"]
 
 [dependencies]
-turboshake = "0.4.0"
+turboshake = "=0.4.1"
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
 serde = { version = "=1.0.217", features = ["derive"] }
