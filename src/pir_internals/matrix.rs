@@ -859,19 +859,28 @@ pub mod test {
 
     #[test]
     fn serialized_matrix_can_be_deserialized() {
-        const NUM_ROWS_IN_MATRIX: usize = 1024;
-        const NUM_COLS_IN_MATRIX: usize = NUM_ROWS_IN_MATRIX + 1;
+        const NUM_ATTEMPT_MATRIX_SERIALIZATIONS: usize = 100;
+        const MIN_MATRIX_DIM: usize = 1;
+        const MAX_MATRIX_DIM: usize = 1024;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
         rng.fill_bytes(&mut seed);
 
-        let matrix_a = Matrix::generate_from_seed(NUM_ROWS_IN_MATRIX, NUM_COLS_IN_MATRIX, &seed).expect("Matrix must be generated from seed");
-        let matrix_a_bytes = matrix_a.to_bytes().unwrap();
-        let matrix_b = Matrix::from_bytes(&matrix_a_bytes).unwrap();
+        let mut current_attempt_count = 0;
+        while current_attempt_count < NUM_ATTEMPT_MATRIX_SERIALIZATIONS {
+            let num_rows = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
 
-        assert_eq!(matrix_a, matrix_b);
+            let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
+            let matrix_a_bytes = matrix_a.to_bytes().unwrap();
+            let matrix_b = Matrix::from_bytes(&matrix_a_bytes).unwrap();
+
+            assert_eq!(matrix_a, matrix_b);
+
+            current_attempt_count += 1;
+        }
     }
 
     #[test]
