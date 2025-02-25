@@ -126,6 +126,7 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
     ///     Returns an error if rows is zero.
+    #[cfg(test)]
     pub fn identity(rows: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(rows == 0) {
             return Err(ChalametPIRError::InvalidMatrixDimension);
@@ -843,6 +844,35 @@ pub mod test {
 
             let matrix_ia = (&matrix_i_prime * &matrix_a).expect("Matrix multiplication must pass");
             assert_eq!(matrix_a, matrix_ia);
+
+            current_attempt_count += 1;
+        }
+    }
+
+    #[test]
+    fn row_vector_transposed_matrix_multiplication_works() {
+        const NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS: usize = 100;
+        const MIN_ROW_VECTOR_DIM: usize = 1;
+        const MAX_ROW_VECTOR_DIM: usize = 1024;
+
+        let mut rng = ChaCha8Rng::from_os_rng();
+
+        let mut seed = [0u8; SEED_BYTE_LEN];
+        rng.fill_bytes(&mut seed);
+
+        let mut current_attempt_count = 0;
+        while current_attempt_count < NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS {
+            let num_rows = 1;
+            let num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+
+            let row_vector_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Row vector must be generated from seed");
+            let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
+            let transposed_matrix_i = matrix_i.transpose();
+
+            let row_vector_b = row_vector_a
+                .row_vector_x_transposed_matrix(&transposed_matrix_i)
+                .expect("Row vector matrix multiplication must pass");
+            assert_eq!(row_vector_a, row_vector_b);
 
             current_attempt_count += 1;
         }
