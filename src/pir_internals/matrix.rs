@@ -809,6 +809,15 @@ pub mod test {
         Matrix::new(num_rows, num_cols)
     }
 
+    #[test_case(1024, 1024, vec![0u32; 1024 * 1024] => matches Ok(_);  "Non-zero number of rows and columns are valid")]
+    #[test_case(0, 1024, vec![] => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of rows must be greater than zero")]
+    #[test_case(1024, 0, vec![] => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of columns must be greater than zero")]
+    #[test_case(0, 0, vec![] => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Both number of rows and columns must be greater than zero")]
+    #[test_case(1024, 1024, vec![0u32; 1024 * 1024 -1] => matches Err(ChalametPIRError::InvalidNumberOfElementsInMatrix);  "Number of elements must be equal to number of rows times number of columns")]
+    fn from_values_matrix_constructor_api(num_rows: usize, num_cols: usize, elems: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
+        Matrix::from_values(num_rows, num_cols, elems)
+    }
+
     #[test]
     fn matrix_multiplication_is_correct() {
         const NUM_ATTEMPT_MATRIX_MULTIPLICATIONS: usize = 100;
