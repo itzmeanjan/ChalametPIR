@@ -691,11 +691,12 @@ impl Neg for &Matrix {
 pub mod test {
     use crate::{
         SEED_BYTE_LEN,
-        pir_internals::{matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        pir_internals::{error::ChalametPIRError, matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
     };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;
+    use test_case::test_case;
 
     /// Generates a random key-value database with the requested number of key-value pairs.
     ///
@@ -798,6 +799,14 @@ pub mod test {
                 }
             }
         }
+    }
+
+    #[test_case(1024, 1024 => matches Ok(_);  "Non-zero number of rows and columns are valid")]
+    #[test_case(0, 1024 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of rows must be greater than zero")]
+    #[test_case(1024, 0 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of columns must be greater than zero")]
+    #[test_case(0, 0 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Both number of rows and columns must be greater than zero")]
+    fn new_empty_matrix_constructor_api(num_rows: usize, num_cols: usize) -> Result<Matrix, ChalametPIRError> {
+        Matrix::new(num_rows, num_cols)
     }
 
     #[test]
