@@ -689,7 +689,10 @@ impl Neg for &Matrix {
 
 #[cfg(test)]
 pub mod test {
-    use crate::{SEED_BYTE_LEN, pir_internals::matrix::Matrix};
+    use crate::{
+        SEED_BYTE_LEN,
+        pir_internals::{matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
+    };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
     use std::collections::HashMap;
@@ -731,7 +734,6 @@ pub mod test {
 
     #[test]
     fn encode_kv_database_using_3_wise_xor_filter_and_recover_values() {
-        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
         const ARITY: u32 = 3;
 
         const MIN_NUM_KV_PAIRS: usize = 1_000;
@@ -745,7 +747,7 @@ pub mod test {
                 let kv_db = generate_random_kv_database(num_kv_pairs);
                 let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
                     .expect("Must be able to encode key-value database as matrix");
 
                 for &key in kv_db_as_ref.keys() {
@@ -766,7 +768,6 @@ pub mod test {
 
     #[test]
     fn encode_kv_database_using_4_wise_xor_filter_and_recover_values() {
-        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
         const ARITY: u32 = 4;
 
         const MIN_NUM_KV_PAIRS: usize = 1_000;
@@ -780,7 +781,7 @@ pub mod test {
                 let kv_db = generate_random_kv_database(num_kv_pairs);
                 let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT)
+                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
                     .expect("Must be able to encode key-value database as matrix");
 
                 for &key in kv_db_as_ref.keys() {
@@ -885,7 +886,6 @@ pub mod test {
 
     #[test]
     fn validate_bits_per_entry_for_3_wise_xor_filter() {
-        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
         const ARITY: u32 = 3;
         const NUM_KV_PAIRS: usize = 1_000_000;
         const MAT_ELEM_BIT_LEN: usize = 10;
@@ -894,7 +894,7 @@ pub mod test {
         let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
         let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT).unwrap();
+        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT).unwrap();
 
         let computed_bpe = filter.bits_per_entry();
         assert!(computed_bpe <= EXPECTED_BPE.ceil());
@@ -902,7 +902,6 @@ pub mod test {
 
     #[test]
     fn validate_bits_per_entry_for_4_wise_xor_filter() {
-        const MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT: usize = 100;
         const ARITY: u32 = 4;
         const NUM_KV_PAIRS: usize = 1_000_000;
         const MAT_ELEM_BIT_LEN: usize = 10;
@@ -911,7 +910,7 @@ pub mod test {
         let kv_db = generate_random_kv_database(NUM_KV_PAIRS);
         let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, MAX_FILTER_CONSTRUCTION_ATTEMPT_COUNT).unwrap();
+        let (_, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref, MAT_ELEM_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT).unwrap();
 
         let computed_bpe = filter.bits_per_entry();
         assert!(computed_bpe <= EXPECTED_BPE.ceil());
