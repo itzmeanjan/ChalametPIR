@@ -692,7 +692,7 @@ impl Neg for &Matrix {
 pub mod test {
     use crate::{
         SEED_BYTE_LEN,
-        pir_internals::{error::ChalametPIRError, matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        pir_internals::{binary_fuse_filter::BinaryFuseFilter, error::ChalametPIRError, matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
     };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
@@ -921,6 +921,24 @@ pub mod test {
     #[test_case(1024, 0  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Number of columns in column vector must be 1")]
     fn sampling_from_uniform_ternary_dist_works(num_rows: usize, num_cols: usize) -> Result<Matrix, ChalametPIRError> {
         Matrix::sample_from_uniform_ternary_dist(num_rows, num_cols)
+    }
+
+    #[test_case({let mut db: HashMap<&[u8], &[u8]> = HashMap::new(); db.insert(b"apple", b"red"); db} => matches Ok(_); "Should be able to encode non-empty database as matrix")]
+    #[test_case(HashMap::new() => matches Err(ChalametPIRError::EmptyKVDatabase); "Can't encode empty database as matrix")]
+    fn encoding_kv_database_as_matrix_using_3_wise_xor_filter(db: HashMap<&[u8], &[u8]>) -> Result<(Matrix, BinaryFuseFilter), ChalametPIRError> {
+        const ARITY: u32 = 3;
+        const MAT_ELEM_BIT_LEN: usize = 8;
+
+        Matrix::from_kv_database::<ARITY>(db, MAT_ELEM_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+    }
+
+    #[test_case({let mut db: HashMap<&[u8], &[u8]> = HashMap::new(); db.insert(b"apple", b"red"); db} => matches Ok(_); "Should be able to encode non-empty database as matrix")]
+    #[test_case(HashMap::new() => matches Err(ChalametPIRError::EmptyKVDatabase); "Can't encode empty database as matrix")]
+    fn encoding_kv_database_as_matrix_using_4_wise_xor_filter(db: HashMap<&[u8], &[u8]>) -> Result<(Matrix, BinaryFuseFilter), ChalametPIRError> {
+        const ARITY: u32 = 4;
+        const MAT_ELEM_BIT_LEN: usize = 8;
+
+        Matrix::from_kv_database::<ARITY>(db, MAT_ELEM_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT)
     }
 
     #[test]
