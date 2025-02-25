@@ -862,17 +862,24 @@ pub mod test {
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS {
-            let num_rows = 1;
-            let num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+            let vec_num_rows = 1;
+            let vec_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+            let mat_num_rows = vec_num_cols;
+            let mat_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
 
-            let row_vector_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Row vector must be generated from seed");
-            let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
-            let transposed_matrix_i = matrix_i.transpose();
+            let row_vector = Matrix::generate_from_seed(vec_num_rows, vec_num_cols, &seed).expect("Row vector must be generated from seed");
+            let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_rows * mat_num_cols]).expect("Matrix of ones must be created");
+            let transposed_all_ones = all_ones.transpose();
 
-            let row_vector_b = row_vector_a
-                .row_vector_x_transposed_matrix(&transposed_matrix_i)
+            let res_row_vector = row_vector
+                .row_vector_x_transposed_matrix(&transposed_all_ones)
                 .expect("Row vector matrix multiplication must pass");
-            assert_eq!(row_vector_a, row_vector_b);
+
+            let expected_res_row_vector = {
+                let sum_of_elems_in_row_vector = row_vector.elems.iter().fold(0u32, |acc, &cur| acc.wrapping_add(cur));
+                Matrix::from_values(vec_num_rows, mat_num_cols, vec![sum_of_elems_in_row_vector; mat_num_cols]).expect("Expected row vector must be created")
+            };
+            assert_eq!(expected_res_row_vector, res_row_vector);
 
             current_attempt_count += 1;
         }
