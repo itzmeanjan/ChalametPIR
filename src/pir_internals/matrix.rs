@@ -913,6 +913,16 @@ pub mod test {
         }
     }
 
+    #[test_case(1, 1024  => matches Ok(_); "Can sample row vector")]
+    #[test_case(1024, 1  => matches Ok(_); "Can sample column vector")]
+    #[test_case(1, 1  => matches Ok(_); "Can sample vector with single element")]
+    #[test_case(1024, 1024  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Either number of rows or columns must be 1 in vector")]
+    #[test_case(0, 1024  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Number of rows in row vector must be 1")]
+    #[test_case(1024, 0  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Number of columns in column vector must be 1")]
+    fn sampling_from_uniform_ternary_dist_works(num_rows: usize, num_cols: usize) -> Result<Matrix, ChalametPIRError> {
+        Matrix::sample_from_uniform_ternary_dist(num_rows, num_cols)
+    }
+
     #[test]
     fn serialized_matrix_can_be_deserialized() {
         const NUM_ATTEMPT_MATRIX_SERIALIZATIONS: usize = 100;
