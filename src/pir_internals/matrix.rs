@@ -819,6 +819,18 @@ pub mod test {
         Matrix::from_values(num_rows, num_cols, elems)
     }
 
+    #[test_case((1024,1),(1,1024) => matches Ok(_); "Matrix multiplication should work for valid dimensions")]
+    #[test_case((1024,1),(1024, 1) => matches Err(ChalametPIRError::IncompatibleDimensionForMatrixMultiplication); "Matrix multiplication should not work for valid dimensions")]
+    fn matrix_multiplication_failures(lhs_mat_dim: (usize, usize), rhs_mat_dim: (usize, usize)) -> Result<Matrix, ChalametPIRError> {
+        let (lhs_mat_rows, lhs_mat_cols) = lhs_mat_dim;
+        let lhs_mat = Matrix::new(lhs_mat_rows, lhs_mat_cols)?;
+
+        let (rhs_mat_rows, rhs_mat_cols) = rhs_mat_dim;
+        let rhs_mat = Matrix::new(rhs_mat_rows, rhs_mat_cols)?;
+
+        lhs_mat * rhs_mat
+    }
+
     #[test]
     fn matrix_multiplication_is_correct() {
         const NUM_ATTEMPT_MATRIX_MULTIPLICATIONS: usize = 100;
