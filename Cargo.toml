@@ -16,7 +16,7 @@ categories = ["cryptography", "data-structures"]
 turboshake = "=0.4.1"
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
-serde = { version = "=1.0.217", features = ["derive"] }
+serde = { version = "=1.0.218", features = ["derive"] }
 bincode = "=1.3.3"
 rayon = "=1.10.0"
 
