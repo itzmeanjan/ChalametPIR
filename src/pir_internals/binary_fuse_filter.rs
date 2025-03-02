@@ -1,12 +1,12 @@
-use super::error::ChalametPIRError;
+use super::{error::ChalametPIRError, params};
 use crate::pir_internals::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Sha3_256};
 use std::collections::HashMap;
+use turboshake::TurboShake128;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct BinaryFuseFilter {
     pub seed: [u8; 32],
     pub arity: u32,
@@ -54,11 +54,7 @@ impl BinaryFuseFilter {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
                 let proposed = array_len.div_ceil(segment_length);
-                if proposed < ARITY {
-                    1
-                } else {
-                    proposed - (ARITY - 1)
-                }
+                if proposed < ARITY { 1 } else { proposed - (ARITY - 1) }
             };
             let array_len: u32 = (segment_count + ARITY - 1) * segment_length;
             (array_len as usize, segment_count)
@@ -260,11 +256,7 @@ impl BinaryFuseFilter {
             let array_len = init_segment_count * segment_length;
             let segment_count: u32 = {
                 let proposed = array_len.div_ceil(segment_length);
-                if proposed < ARITY {
-                    1
-                } else {
-                    proposed - (ARITY - 1)
-                }
+                if proposed < ARITY { 1 } else { proposed - (ARITY - 1) }
             };
             let array_len: u32 = (segment_count + ARITY - 1) * segment_length;
             (array_len as usize, segment_count)
@@ -484,20 +476,12 @@ pub fn size_factor<const ARITY: u32>(size: u32) -> f64 {
 
 #[inline(always)]
 pub const fn mod3(x: u8) -> u8 {
-    if x > 2 {
-        x - 3
-    } else {
-        x
-    }
+    if x > 2 { x - 3 } else { x }
 }
 
 #[inline(always)]
 pub const fn mod4(x: u8) -> u8 {
-    if x > 3 {
-        x - 4
-    } else {
-        x
-    }
+    if x > 3 { x - 4 } else { x }
 }
 
 /// Computes a 64-bit MurmurHash3-like hash from a 64-bit input.
@@ -519,9 +503,12 @@ pub const fn mix(key: u64, seed: u64) -> u64 {
 
 #[inline(always)]
 pub fn hash_of_key(key: &[u8]) -> [u64; 4] {
-    let mut hasher = Sha3_256::new();
-    hasher.update(key);
-    let digest_bytes = hasher.finalize();
+    let mut hasher = TurboShake128::default();
+    hasher.absorb(key);
+    hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
+
+    let mut digest_bytes = [0u8; params::HASHED_KEY_BYTE_LEN];
+    hasher.squeeze(&mut digest_bytes);
 
     unsafe {
         [

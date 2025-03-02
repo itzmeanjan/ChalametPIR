@@ -64,7 +64,7 @@ fn server_setup<const ARITY: u32>(bencher: divan::Bencher, db_config: &DBConfig)
     rng.fill_bytes(&mut seed_μ);
 
     bencher
-        .with_inputs(|| (kv_as_ref.clone(), seed_μ.clone()))
+        .with_inputs(|| (kv_as_ref.clone(), seed_μ))
         .bench_values(|(kv, seed)| server::Server::setup::<ARITY>(divan::black_box(&seed), divan::black_box(kv)));
 }
 

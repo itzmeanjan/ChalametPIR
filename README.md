@@ -38,11 +38,11 @@ and this implementation of ChalametPIR is compiled with specified compiler, in `
 
 Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` server | Ratio `a / b`
 :-- | --: | --: | --:
-`server_setup` | 10.49 minutes | 23.6 minutes | 0.44
-`client_setup` | 16.25 seconds | 17.98 seconds | 0.9
-`client_query` | 262.5 milliseconds | 2.13 seconds | 0.12
-`server_respond` | 18.58 milliseconds | 33.19 milliseconds | 0.56
-`client_process_response` | 11.69 microseconds | 16.82 microseconds | 0.7
+`server_setup` | 9.73 minutes | 22.11 minutes | 0.44
+`client_setup` | 9.43 seconds | 10.47 seconds | 0.9
+`client_query` | 309 milliseconds | 2.57 seconds | 0.12
+`server_respond` | 18.01 milliseconds | 32.16 milliseconds | 0.56
+`client_process_response` | 11.73 microseconds | 16.75 microseconds | 0.7
 
 > [!NOTE]
 > In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
@@ -93,12 +93,6 @@ cargo bench --all-features --profile optimized # For benchmarking the online pha
 ---
 ![online-phase](./bench-results/online.m8g.8xlarge.png)
 
-
-### On AWS EC2 Instance `m7i.8xlarge` (x86_64)
-![offline-phase](./bench-results/offline.m7i.8xlarge.png)
----
-![online-phase](./bench-results/online.m7i.8xlarge.png)
-
 > [!NOTE]
 > More about AWS EC2 instances @ https://aws.amazon.com/ec2/instance-types.
 
@@ -107,7 +101,7 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.2.0"
+chalamet_pir = "=0.3.0"
 ```
 
 Then, let's code a very simple keyword PIR scheme:

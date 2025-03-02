@@ -1,4 +1,4 @@
-use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
+use chalamet_pir::{SEED_BYTE_LEN, client::Client, server::Server};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;
@@ -100,7 +100,7 @@ fn main() {
         let is_random_key_in_db = kv_db.contains_key(&random_key);
 
         let key_as_bytes = random_key.to_le_bytes();
-        if let Ok(query) = client_handle.query(&key_as_bytes.as_slice()) {
+        if let Ok(query) = client_handle.query(&key_as_bytes) {
             if num_keys_quried == 0 {
                 println!("Query size                                : {}", format_bytes(query.len()));
             }
