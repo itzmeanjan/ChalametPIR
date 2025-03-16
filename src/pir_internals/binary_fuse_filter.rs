@@ -2,11 +2,10 @@ use super::{error::ChalametPIRError, params};
 use crate::pir_internals::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use turboshake::TurboShake128;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct BinaryFuseFilter {
     pub seed: [u8; 32],
     pub arity: u32,
@@ -441,12 +440,68 @@ impl BinaryFuseFilter {
         ((self.num_fingerprints as f64) * (self.mat_elem_bit_len as f64)) / (self.filter_size as f64)
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
-        bincode::serialize(&self).map_err(|err| ChalametPIRError::FailedToSerializeFilterToBytes(err.to_string()))
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let offset0 = 0;
+        let offset1 = offset0 + self.seed.len();
+        let offset2 = offset1 + std::mem::size_of_val(&self.arity);
+        let offset3 = offset2 + std::mem::size_of_val(&self.segment_length);
+        let offset4 = offset3 + std::mem::size_of_val(&self.segment_count_length);
+        let offset5 = offset4 + std::mem::size_of_val(&self.num_fingerprints);
+        let offset6 = offset5 + std::mem::size_of_val(&self.filter_size);
+        let total_byte_len = offset6 + std::mem::size_of_val(&self.mat_elem_bit_len);
+
+        let mut bytes = vec![0u8; total_byte_len];
+
+        unsafe {
+            bytes.get_unchecked_mut(offset0..offset1).copy_from_slice(&self.seed);
+            bytes
+                .get_unchecked_mut(offset1..offset2)
+                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.arity));
+            bytes
+                .get_unchecked_mut(offset2..offset3)
+                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.segment_length));
+            bytes
+                .get_unchecked_mut(offset3..offset4)
+                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.segment_count_length));
+            bytes
+                .get_unchecked_mut(offset4..offset5)
+                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.num_fingerprints));
+            bytes
+                .get_unchecked_mut(offset5..offset6)
+                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.filter_size));
+            bytes
+                .get_unchecked_mut(offset6..)
+                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.mat_elem_bit_len));
+        }
+
+        bytes
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<BinaryFuseFilter, ChalametPIRError> {
-        bincode::deserialize(bytes).map_err(|err| ChalametPIRError::FailedToDeserializeFilterFromBytes(err.to_string()))
+        const OFFSET0: usize = 0;
+        const OFFSET1: usize = OFFSET0 + std::mem::size_of::<[u8; 32]>();
+        const OFFSET2: usize = OFFSET1 + std::mem::size_of::<u32>();
+        const OFFSET3: usize = OFFSET2 + std::mem::size_of::<u32>();
+        const OFFSET4: usize = OFFSET3 + std::mem::size_of::<u32>();
+        const OFFSET5: usize = OFFSET4 + std::mem::size_of::<usize>();
+        const OFFSET6: usize = OFFSET5 + std::mem::size_of::<usize>();
+        const EXPECTED_BYTE_LEN: usize = OFFSET6 + std::mem::size_of::<usize>();
+
+        if branch_opt_util::unlikely(EXPECTED_BYTE_LEN != bytes.len()) {
+            return Err(ChalametPIRError::FailedToDeserializeFilterFromBytes);
+        }
+
+        Ok(unsafe {
+            BinaryFuseFilter {
+                seed: bytes.get_unchecked(OFFSET0..OFFSET1).try_into().unwrap(),
+                arity: u32::from_le_bytes(bytes.get_unchecked(OFFSET1..OFFSET2).try_into().unwrap()),
+                segment_length: u32::from_le_bytes(bytes.get_unchecked(OFFSET2..OFFSET3).try_into().unwrap()),
+                segment_count_length: u32::from_le_bytes(bytes.get_unchecked(OFFSET3..OFFSET4).try_into().unwrap()),
+                num_fingerprints: usize::from_le_bytes(bytes.get_unchecked(OFFSET4..OFFSET5).try_into().unwrap()),
+                filter_size: usize::from_le_bytes(bytes.get_unchecked(OFFSET5..OFFSET6).try_into().unwrap()),
+                mat_elem_bit_len: usize::from_le_bytes(bytes.get_unchecked(OFFSET6..).try_into().unwrap()),
+            }
+        })
     }
 }
 
