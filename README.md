@@ -101,7 +101,7 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.3.0"
+chalamet_pir = "=0.4.0"
 ```
 
 Then, let's code a very simple keyword PIR scheme:

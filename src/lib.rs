@@ -18,7 +18,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! chalametpir = "=0.3.0"
+//! chalametpir = "=0.4.0"
 //! rand = "=0.9.0"
 //! rand_chacha = "=0.9.0"
 //! ```
