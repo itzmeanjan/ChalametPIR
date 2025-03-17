@@ -6,7 +6,6 @@ use crate::pir_internals::{
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     ops::{Add, Index, IndexMut, Mul},
@@ -18,7 +17,7 @@ use std::ops::Neg;
 
 use super::error::ChalametPIRError;
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Matrix {
     rows: usize,
     cols: usize,
@@ -567,24 +566,73 @@ impl Matrix {
         }
     }
 
-    pub fn to_bytes(&self) -> Result<Vec<u8>, ChalametPIRError> {
-        bincode::serialize(&self).map_err(|e| ChalametPIRError::FailedToSerializeMatrixToBytes(e.to_string()))
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let encoded_elems_byte_len = std::mem::size_of::<u32>() * self.rows * self.cols;
+
+        let offset0 = 0;
+        let offset1 = offset0 + std::mem::size_of_val(&self.rows);
+        let offset2 = offset1 + std::mem::size_of_val(&self.cols);
+        let total_byte_len = offset2 + encoded_elems_byte_len;
+
+        let elems_as_bytes = unsafe {
+            let ptr_elems = self.elems.as_ptr();
+            let ptr_elem_bytes: *const u8 = ptr_elems.cast();
+
+            core::slice::from_raw_parts(ptr_elem_bytes, encoded_elems_byte_len)
+        };
+
+        let mut bytes = vec![0u8; total_byte_len];
+
+        unsafe {
+            bytes
+                .get_unchecked_mut(offset0..offset1)
+                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.rows));
+            bytes
+                .get_unchecked_mut(offset1..offset2)
+                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.cols));
+            bytes.get_unchecked_mut(offset2..).copy_from_slice(elems_as_bytes);
+        }
+
+        bytes
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, ChalametPIRError> {
-        bincode::deserialize(bytes).map_or_else(
-            |e| Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes(e.to_string())),
-            |v: Matrix| {
-                let expected_num_elems = v.num_rows() * v.num_cols();
-                let actual_num_elems = v.num_elems();
+        const OFFSET0: usize = 0;
+        const OFFSET1: usize = OFFSET0 + std::mem::size_of::<usize>();
+        const OFFSET2: usize = OFFSET1 + std::mem::size_of::<usize>();
 
-                if branch_opt_util::likely(expected_num_elems == actual_num_elems) {
-                    Ok(v)
-                } else {
-                    Err(ChalametPIRError::InvalidNumberOfElementsInMatrix)
-                }
-            },
-        )
+        if branch_opt_util::unlikely(bytes.len() <= OFFSET2) {
+            return Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes);
+        }
+
+        let (rows, cols) = unsafe {
+            (
+                usize::from_le_bytes(bytes.get_unchecked(OFFSET0..OFFSET1).try_into().unwrap()),
+                usize::from_le_bytes(bytes.get_unchecked(OFFSET1..OFFSET2).try_into().unwrap()),
+            )
+        };
+        let num_elems = rows * cols;
+
+        if branch_opt_util::unlikely(num_elems == 0) {
+            return Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes);
+        }
+
+        let encoded_elems_byte_len = std::mem::size_of::<u32>() * num_elems;
+        let remaining_num_bytes = bytes.len() - OFFSET2;
+
+        if branch_opt_util::unlikely(encoded_elems_byte_len != remaining_num_bytes) {
+            return Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes);
+        }
+
+        let elems = unsafe {
+            let ptr_elem_bytes = bytes[OFFSET2..].as_ptr();
+            let ptr_elems: *const u32 = ptr_elem_bytes.cast();
+
+            core::slice::from_raw_parts(ptr_elems, num_elems)
+        }
+        .to_vec();
+
+        Ok(Matrix { rows, cols, elems })
     }
 }
 
@@ -982,7 +1030,7 @@ pub mod test {
             let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
 
             let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
-            let matrix_a_bytes = matrix_a.to_bytes().unwrap();
+            let matrix_a_bytes = matrix_a.to_bytes();
             let matrix_b = Matrix::from_bytes(&matrix_a_bytes).unwrap();
 
             assert_eq!(matrix_a, matrix_b);
