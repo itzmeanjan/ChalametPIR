@@ -55,8 +55,8 @@ impl Server {
         let pub_mat_a = unsafe { Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ).unwrap_unchecked() };
 
         let hint_mat_m = unsafe { (&pub_mat_a * &parsed_db_mat_d).unwrap_unchecked() };
-        let hint_bytes = hint_mat_m.to_bytes()?;
-        let filter_param_bytes: Vec<u8> = filter.to_bytes()?;
+        let hint_bytes = hint_mat_m.to_bytes();
+        let filter_param_bytes: Vec<u8> = filter.to_bytes();
         let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose();
 
         Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
@@ -81,7 +81,7 @@ impl Server {
         let query_vector = Matrix::from_bytes(query)?;
         let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
 
-        response_vector.to_bytes()
+        Ok(response_vector.to_bytes())
     }
 
     /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.

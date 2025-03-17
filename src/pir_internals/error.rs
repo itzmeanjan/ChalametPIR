@@ -13,8 +13,7 @@ pub enum ChalametPIRError {
     InvalidNumberOfElementsInMatrix,
     IncompatibleDimensionForRowVectorTransposedMatrixMultiplication,
     InvalidDimensionForVector,
-    FailedToSerializeMatrixToBytes(String),
-    FailedToDeserializeMatrixFromBytes(String),
+    FailedToDeserializeMatrixFromBytes,
 
     // Binary Fuse Filter
     EmptyKVDatabase,
@@ -22,8 +21,7 @@ pub enum ChalametPIRError {
     ExhaustedAllAttemptsToBuild4WiseXorFilter(usize),
     RowNotDecodable,
     DecodedRowNotPrependedWithDigestOfKey,
-    FailedToSerializeFilterToBytes(String),
-    FailedToDeserializeFilterFromBytes(String),
+    FailedToDeserializeFilterFromBytes,
 
     // PIR
     KVDatabaseSizeTooLarge,
@@ -46,8 +44,7 @@ impl Display for ChalametPIRError {
                 write!(f, "The dimensions are incompatible for multiplication of a row vector and a transposed matrix.")
             }
             Self::InvalidDimensionForVector => write!(f, "A vector must have either one row or one column."),
-            Self::FailedToSerializeMatrixToBytes(e) => write!(f, "Matrix serialization failed with: {}", e),
-            Self::FailedToDeserializeMatrixFromBytes(e) => write!(f, "Matrix deserialization failed with: {}", e),
+            Self::FailedToDeserializeMatrixFromBytes => write!(f, "Matrix deserialization failed"),
 
             Self::EmptyKVDatabase => write!(f, "Cannot encode empty key-value database."),
             Self::ExhaustedAllAttemptsToBuild3WiseXorFilter(max_num_attempts) => {
@@ -58,8 +55,7 @@ impl Display for ChalametPIRError {
             }
             Self::RowNotDecodable => write!(f, "Encoded KV database matrix's row cannot be decoded."),
             Self::DecodedRowNotPrependedWithDigestOfKey => write!(f, "Decoded row does not have the digest of the key prepended to it."),
-            Self::FailedToSerializeFilterToBytes(e) => write!(f, "Binary fuse filter serialization failed with: {}", e),
-            Self::FailedToDeserializeFilterFromBytes(e) => write!(f, "Binary fuse filter deserialization failed with: {}", e),
+            Self::FailedToDeserializeFilterFromBytes => write!(f, "Binary fuse filter deserialization failed"),
 
             Self::KVDatabaseSizeTooLarge => write!(f, "The key-value database is too large; it can have a maximum of 2^42 entries."),
             Self::InvalidHintMatrix => write!(f, "Unexpected number of rows in the hint matrix."),

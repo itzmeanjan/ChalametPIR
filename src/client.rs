@@ -135,7 +135,7 @@ impl Client {
             query_vec_b[(0, h2 as usize)] = added_val;
         }
 
-        let query_bytes = query_vec_b.to_bytes()?;
+        let query_bytes = query_vec_b.to_bytes();
         self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
         Ok(query_bytes)
@@ -189,7 +189,7 @@ impl Client {
             query_vec_b[(0, h3 as usize)] = added_val;
         }
 
-        let query_bytes = query_vec_b.to_bytes()?;
+        let query_bytes = query_vec_b.to_bytes();
         self.pending_queries.insert(key.to_vec(), Query { vec_c: secret_vec_c });
 
         Ok(query_bytes)
