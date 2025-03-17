@@ -584,12 +584,8 @@ impl Matrix {
         let mut bytes = vec![0u8; total_byte_len];
 
         unsafe {
-            bytes
-                .get_unchecked_mut(offset0..offset1)
-                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.rows));
-            bytes
-                .get_unchecked_mut(offset1..offset2)
-                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.cols));
+            bytes.get_unchecked_mut(offset0..offset1).copy_from_slice(&self.rows.to_le_bytes());
+            bytes.get_unchecked_mut(offset1..offset2).copy_from_slice(&self.cols.to_le_bytes());
             bytes.get_unchecked_mut(offset2..).copy_from_slice(elems_as_bytes);
         }
 

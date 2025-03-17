@@ -454,24 +454,13 @@ impl BinaryFuseFilter {
 
         unsafe {
             bytes.get_unchecked_mut(offset0..offset1).copy_from_slice(&self.seed);
-            bytes
-                .get_unchecked_mut(offset1..offset2)
-                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.arity));
-            bytes
-                .get_unchecked_mut(offset2..offset3)
-                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.segment_length));
-            bytes
-                .get_unchecked_mut(offset3..offset4)
-                .copy_from_slice(&std::mem::transmute::<u32, [u8; std::mem::size_of::<u32>()]>(self.segment_count_length));
-            bytes
-                .get_unchecked_mut(offset4..offset5)
-                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.num_fingerprints));
-            bytes
-                .get_unchecked_mut(offset5..offset6)
-                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.filter_size));
-            bytes
-                .get_unchecked_mut(offset6..)
-                .copy_from_slice(&std::mem::transmute::<usize, [u8; std::mem::size_of::<usize>()]>(self.mat_elem_bit_len));
+            bytes.get_unchecked_mut(offset1..offset2).copy_from_slice(&self.arity.to_le_bytes());
+            bytes.get_unchecked_mut(offset2..offset3).copy_from_slice(&self.segment_length.to_le_bytes());
+            #[rustfmt::skip]
+            bytes.get_unchecked_mut(offset3..offset4).copy_from_slice(&self.segment_count_length.to_le_bytes());
+            bytes.get_unchecked_mut(offset4..offset5).copy_from_slice(&self.num_fingerprints.to_le_bytes());
+            bytes.get_unchecked_mut(offset5..offset6).copy_from_slice(&self.filter_size.to_le_bytes());
+            bytes.get_unchecked_mut(offset6..).copy_from_slice(&self.mat_elem_bit_len.to_le_bytes());
         }
 
         bytes
