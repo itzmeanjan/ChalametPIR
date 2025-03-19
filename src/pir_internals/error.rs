@@ -6,6 +6,12 @@ use std::{error::Error, fmt::Display};
 /// It includes errors related to matrix operations, binary fuse filter operations, and PIR operations.
 #[derive(Debug, PartialEq)]
 pub enum ChalametPIRError {
+    // GPU
+    VulkanLibraryNotFound,
+    VulkanInstanceCreationFailed,
+    VulkanPhysicalDeviceNotFound,
+    VulkanDeviceCreationFailed,
+
     // Matrix
     InvalidMatrixDimension,
     IncompatibleDimensionForMatrixMultiplication,
@@ -36,6 +42,11 @@ pub enum ChalametPIRError {
 impl Display for ChalametPIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::VulkanLibraryNotFound => write!(f, "Failed to load the default Vulkan library for the system."),
+            Self::VulkanInstanceCreationFailed => write!(f, "Failed to create a new instance of Vulkan."),
+            Self::VulkanPhysicalDeviceNotFound => write!(f, "Failed to find a compatible Vulkan physical device."),
+            Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue"),
+
             Self::InvalidMatrixDimension => write!(f, "The number of rows and columns in the matrix must be non-zero."),
             Self::IncompatibleDimensionForMatrixMultiplication => write!(f, "The matrix dimensions do not allow multiplication."),
             Self::IncompatibleDimensionForMatrixAddition => write!(f, "The matrix dimensions do not allow addition."),
