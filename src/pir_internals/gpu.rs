@@ -83,6 +83,22 @@ pub fn matrix_to_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matr
     .map_err(|_| ChalametPIRError::VulkanSourceBufferCreationFailed)
 }
 
+pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+    Buffer::new_slice::<u8>(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+            ..Default::default()
+        },
+        byte_len,
+    )
+    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)
+}
+
 pub fn record_transfer(
     cmd_buf_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
     src: Subbuffer<[u8]>,
