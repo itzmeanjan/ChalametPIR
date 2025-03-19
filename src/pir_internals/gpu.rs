@@ -4,10 +4,13 @@ use std::sync::Arc;
 use vulkano::{
     VulkanLibrary,
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
-    command_buffer::{AutoCommandBufferBuilder, CopyBufferInfo, PrimaryAutoCommandBuffer, allocator::StandardCommandBufferAllocator},
+    command_buffer::{
+        AutoCommandBufferBuilder, CopyBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
+    },
     device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
+    sync::GpuFuture,
 };
 
 pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>, Arc<StandardMemoryAllocator>, Arc<StandardCommandBufferAllocator>), ChalametPIRError> {
@@ -107,4 +110,16 @@ pub fn record_transfer(
     cmd_buf_builder
         .copy_buffer(CopyBufferInfo::buffers(src, dst))
         .map_err(|_| ChalametPIRError::VulkanTransferCommandRecordFailed)
+}
+
+pub fn finish_transfer(cmd_buf_builder: AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, queue: Arc<Queue>) -> Result<(), ChalametPIRError> {
+    cmd_buf_builder
+        .build()
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+        .execute(queue.clone())
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
+        .then_signal_fence_and_flush()
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
+        .wait(None)
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)
 }

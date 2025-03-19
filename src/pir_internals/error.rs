@@ -14,6 +14,8 @@ pub enum ChalametPIRError {
     VulkanSourceBufferCreationFailed,
     VulkanEmptyBufferCreationFailed,
     VulkanTransferCommandRecordFailed,
+    VulkanCommandBufferBuildingFailed,
+    VulkanCommandBufferExecutionFailed,
 
     // Matrix
     InvalidMatrixDimension,
@@ -48,10 +50,12 @@ impl Display for ChalametPIRError {
             Self::VulkanLibraryNotFound => write!(f, "Failed to load the default Vulkan library for the system."),
             Self::VulkanInstanceCreationFailed => write!(f, "Failed to create a new instance of Vulkan."),
             Self::VulkanPhysicalDeviceNotFound => write!(f, "Failed to find a compatible Vulkan physical device."),
-            Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue"),
-            Self::VulkanSourceBufferCreationFailed => write!(f, "Failed to create a Vulkan transfer source buffer"),
-            Self::VulkanEmptyBufferCreationFailed => write!(f, "Failed to create an empty Vulkan storage buffer"),
-            Self::VulkanTransferCommandRecordFailed => write!(f, "Failed to record Vulkan buffer to buffer data transfer command"),
+            Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue."),
+            Self::VulkanSourceBufferCreationFailed => write!(f, "Failed to create a Vulkan transfer source buffer."),
+            Self::VulkanEmptyBufferCreationFailed => write!(f, "Failed to create an empty Vulkan storage buffer."),
+            Self::VulkanTransferCommandRecordFailed => write!(f, "Failed to record Vulkan buffer to buffer data transfer command."),
+            Self::VulkanCommandBufferBuildingFailed => write!(f, "Failed to build a Vulkan command buffer."),
+            Self::VulkanCommandBufferExecutionFailed => write!(f, "Failed to execute the Vulkan command buffer"),
 
             Self::InvalidMatrixDimension => write!(f, "The number of rows and columns in the matrix must be non-zero."),
             Self::IncompatibleDimensionForMatrixMultiplication => write!(f, "The matrix dimensions do not allow multiplication."),
