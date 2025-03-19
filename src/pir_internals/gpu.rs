@@ -82,4 +82,13 @@ pub fn matrix_to_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matr
     )
     .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)
 }
+
+pub fn record_transfer(
+    cmd_buf_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
+    src: Subbuffer<[u8]>,
+    dst: Subbuffer<[u8]>,
+) -> Result<&mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, ChalametPIRError> {
+    cmd_buf_builder
+        .copy_buffer(CopyBufferInfo::buffers(src, dst))
+        .map_err(|_| ChalametPIRError::VulkanTransferCommandRecordFailed)
 }
