@@ -66,4 +66,21 @@ pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>, Arc<StandardMemoryAllocat
     Ok((device, queue, memory_allocator, command_buffer_allocator))
 }
 
+pub fn make_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matrix: Matrix) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+    let matrix_as_bytes = matrix.to_bytes();
+    let buffer = Buffer::from_iter(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::TRANSFER_SRC,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::HOST_SEQUENTIAL_WRITE | MemoryTypeFilter::PREFER_DEVICE,
+            ..Default::default()
+        },
+        matrix_as_bytes,
+    )
+    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)?;
+    Ok(buffer)
+}
 }
