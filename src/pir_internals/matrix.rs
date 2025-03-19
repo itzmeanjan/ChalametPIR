@@ -84,6 +84,10 @@ impl Matrix {
     pub fn num_elems(&self) -> usize {
         self.elems.len()
     }
+    #[inline(always)]
+    pub fn num_bytes(&self) -> usize {
+        std::mem::size_of_val(&self.rows) + std::mem::size_of_val(&self.cols) + std::mem::size_of::<u32>() * (self.rows * self.cols) as usize
+    }
 
     /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
     ///
