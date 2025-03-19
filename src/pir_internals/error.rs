@@ -11,6 +11,7 @@ pub enum ChalametPIRError {
     VulkanInstanceCreationFailed,
     VulkanPhysicalDeviceNotFound,
     VulkanDeviceCreationFailed,
+    VulkanBufferCreationFailed,
 
     // Matrix
     InvalidMatrixDimension,
@@ -46,6 +47,7 @@ impl Display for ChalametPIRError {
             Self::VulkanInstanceCreationFailed => write!(f, "Failed to create a new instance of Vulkan."),
             Self::VulkanPhysicalDeviceNotFound => write!(f, "Failed to find a compatible Vulkan physical device."),
             Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue"),
+            Self::VulkanBufferCreationFailed => write!(f, "Failed to create a Vulkan buffer"),
 
             Self::InvalidMatrixDimension => write!(f, "The number of rows and columns in the matrix must be non-zero."),
             Self::IncompatibleDimensionForMatrixMultiplication => write!(f, "The matrix dimensions do not allow multiplication."),
