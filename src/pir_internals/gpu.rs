@@ -1,12 +1,16 @@
+use super::matrix::Matrix;
 use crate::ChalametPIRError;
 use std::sync::Arc;
 use vulkano::{
     VulkanLibrary,
+    buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
+    command_buffer::{AutoCommandBufferBuilder, CopyBufferInfo, PrimaryAutoCommandBuffer, allocator::StandardCommandBufferAllocator},
     device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
+    memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
 };
 
-pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>), ChalametPIRError> {
+pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>, Arc<StandardMemoryAllocator>, Arc<StandardCommandBufferAllocator>), ChalametPIRError> {
     let library = VulkanLibrary::new().map_err(|_| ChalametPIRError::VulkanLibraryNotFound)?;
     let instance = Instance::new(
         library,
@@ -42,22 +46,24 @@ pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>), ChalametPIRError> {
         })
         .ok_or(ChalametPIRError::VulkanPhysicalDeviceNotFound)?;
 
-    let (device, queue) = {
-        let (device, mut queues) = Device::new(
-            physical_device,
-            DeviceCreateInfo {
-                enabled_extensions: device_extensions,
-                queue_create_infos: vec![QueueCreateInfo {
-                    queue_family_index,
-                    ..Default::default()
-                }],
+    let (device, mut queues) = Device::new(
+        physical_device,
+        DeviceCreateInfo {
+            enabled_extensions: device_extensions,
+            queue_create_infos: vec![QueueCreateInfo {
+                queue_family_index,
                 ..Default::default()
-            },
-        )
-        .map_err(|_| ChalametPIRError::VulkanDeviceCreationFailed)?;
+            }],
+            ..Default::default()
+        },
+    )
+    .map_err(|_| ChalametPIRError::VulkanDeviceCreationFailed)?;
+    let queue = queues.next().ok_or(ChalametPIRError::VulkanDeviceCreationFailed)?;
 
-        (device, queues.next().ok_or(ChalametPIRError::VulkanDeviceCreationFailed)?)
-    };
+    let memory_allocator = Arc::new(StandardMemoryAllocator::new_default(device.clone()));
+    let command_buffer_allocator = Arc::new(StandardCommandBufferAllocator::new(device.clone(), Default::default()));
 
-    Ok((device, queue))
+    Ok((device, queue, memory_allocator, command_buffer_allocator))
+}
+
 }
