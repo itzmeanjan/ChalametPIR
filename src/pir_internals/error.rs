@@ -13,7 +13,7 @@ pub enum ChalametPIRError {
     VulkanDeviceCreationFailed,
     VulkanSourceBufferCreationFailed,
     VulkanEmptyBufferCreationFailed,
-    VulkanTransferCommandRecordFailed,
+    VulkanCommandBufferRecordingFailed,
     VulkanCommandBufferBuildingFailed,
     VulkanCommandBufferExecutionFailed,
 
@@ -53,7 +53,7 @@ impl Display for ChalametPIRError {
             Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue."),
             Self::VulkanSourceBufferCreationFailed => write!(f, "Failed to create a Vulkan transfer source buffer."),
             Self::VulkanEmptyBufferCreationFailed => write!(f, "Failed to create an empty Vulkan storage buffer."),
-            Self::VulkanTransferCommandRecordFailed => write!(f, "Failed to record Vulkan buffer to buffer data transfer command."),
+            Self::VulkanCommandBufferRecordingFailed => write!(f, "Failed to record command in a Vulkan command buffer."),
             Self::VulkanCommandBufferBuildingFailed => write!(f, "Failed to build a Vulkan command buffer."),
             Self::VulkanCommandBufferExecutionFailed => write!(f, "Failed to execute the Vulkan command buffer"),
 

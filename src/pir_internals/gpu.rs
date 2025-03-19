@@ -109,7 +109,7 @@ pub fn record_transfer(
 ) -> Result<&mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, ChalametPIRError> {
     cmd_buf_builder
         .copy_buffer(CopyBufferInfo::buffers(src, dst))
-        .map_err(|_| ChalametPIRError::VulkanTransferCommandRecordFailed)
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)
 }
 
 pub fn finish_transfer(cmd_buf_builder: AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, queue: Arc<Queue>) -> Result<(), ChalametPIRError> {
