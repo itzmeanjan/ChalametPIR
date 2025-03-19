@@ -80,7 +80,7 @@ pub fn matrix_to_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matr
         },
         matrix_as_bytes,
     )
-    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)
+    .map_err(|_| ChalametPIRError::VulkanSourceBufferCreationFailed)
 }
 
 pub fn record_transfer(
