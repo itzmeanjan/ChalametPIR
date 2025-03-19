@@ -50,7 +50,7 @@ impl Server {
         let (parsed_db_mat_d, filter) = Matrix::from_kv_database::<ARITY>(db, mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)?;
 
         let pub_mat_a_num_rows = LWE_DIMENSION;
-        let pub_mat_a_num_cols = filter.num_fingerprints;
+        let pub_mat_a_num_cols = filter.num_fingerprints as u32;
 
         let pub_mat_a = unsafe { Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ).unwrap_unchecked() };
 

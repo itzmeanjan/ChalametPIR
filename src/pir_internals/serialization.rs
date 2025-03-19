@@ -19,7 +19,7 @@ use turboshake::TurboShake128;
 ///
 /// A vector of 32-bit unsigned integers representing the encoded key-value pair.
 #[inline]
-pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_cols: usize) -> Vec<u32> {
+pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_cols: u32) -> Vec<u32> {
     let hashed_key = {
         let mut hasher = TurboShake128::default();
         hasher.absorb(key);
@@ -31,7 +31,7 @@ pub fn encode_kv_as_row(key: &[u8], value: &[u8], mat_elem_bit_len: usize, num_c
         hashed_key
     };
 
-    let mut row = vec![0u32; num_cols];
+    let mut row = vec![0u32; num_cols as usize];
     let mut row_offset = 0;
 
     let mat_elem_mask = (1u64 << mat_elem_bit_len) - 1;
@@ -268,8 +268,8 @@ mod test {
                         hashed_key
                     };
 
-                    let actual_encoded_kv_len = (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
-                    let max_encoded_kv_len = (hashed_key.len() * 8 + (2 * value.len() + 1) * 8).div_ceil(mat_elem_bit_len);
+                    let actual_encoded_kv_len = (hashed_key.len() * 8 + (value.len() + 1) * 8).div_ceil(mat_elem_bit_len) as u32;
+                    let max_encoded_kv_len = (hashed_key.len() * 8 + (2 * value.len() + 1) * 8).div_ceil(mat_elem_bit_len) as u32;
 
                     for encoded_kv_len in actual_encoded_kv_len..max_encoded_kv_len {
                         let row = encode_kv_as_row(&key, &value, mat_elem_bit_len, encoded_kv_len);
