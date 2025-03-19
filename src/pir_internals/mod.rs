@@ -4,3 +4,6 @@ pub mod error;
 pub mod matrix;
 pub mod params;
 pub mod serialization;
+
+#[cfg(feature = "gpu")]
+pub mod mat_x_mat_shader;
