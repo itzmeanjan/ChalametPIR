@@ -9,3 +9,5 @@ pub mod serialization;
 pub mod gpu;
 #[cfg(feature = "gpu")]
 pub mod mat_x_mat_shader;
+#[cfg(feature = "gpu")]
+pub mod mat_transpose_shader;
