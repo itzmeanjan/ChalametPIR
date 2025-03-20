@@ -75,10 +75,17 @@ pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>, Arc<StandardMemoryAllocat
     Ok((device, queue, memory_allocator, command_buffer_allocator))
 }
 
-pub fn matrix_to_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matrix: Matrix) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+pub fn transfer_mat_to_device(
+    queue: Arc<Queue>,
+    mem_alloc: Arc<StandardMemoryAllocator>,
+    cmd_buf_alloc: Arc<StandardCommandBufferAllocator>,
+    matrix: Matrix,
+) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
     let matrix_as_bytes = matrix.to_bytes();
-    Buffer::from_iter(
-        memory_allocator.clone(),
+    let matrix_byte_len = matrix_as_bytes.len() as u64;
+
+    let src_buf = Buffer::from_iter(
+        mem_alloc.clone(),
         BufferCreateInfo {
             usage: BufferUsage::TRANSFER_SRC,
             ..Default::default()
@@ -89,12 +96,10 @@ pub fn matrix_to_src_buffer(memory_allocator: Arc<StandardMemoryAllocator>, matr
         },
         matrix_as_bytes,
     )
-    .map_err(|_| ChalametPIRError::VulkanSourceBufferCreationFailed)
-}
+    .map_err(|_| ChalametPIRError::VulkanSourceBufferCreationFailed)?;
 
-pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
-    Buffer::new_slice::<u8>(
-        memory_allocator.clone(),
+    let dst_buf = Buffer::new_slice::<u8>(
+        mem_alloc.clone(),
         BufferCreateInfo {
             usage: BufferUsage::STORAGE_BUFFER | BufferUsage::TRANSFER_DST,
             ..Default::default()
@@ -103,31 +108,46 @@ pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, 
             memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
             ..Default::default()
         },
-        byte_len,
+        matrix_byte_len,
     )
-    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)
-}
+    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)?;
 
-pub fn record_transfer(
-    cmd_buf_builder: &mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>,
-    src: Subbuffer<[u8]>,
-    dst: Subbuffer<[u8]>,
-) -> Result<&mut AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, ChalametPIRError> {
-    cmd_buf_builder
-        .copy_buffer(CopyBufferInfo::buffers(src, dst))
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)
-}
+    let cmd_buf = {
+        let mut builder = AutoCommandBufferBuilder::primary(cmd_buf_alloc, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
+            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
 
-pub fn finish_transfer(cmd_buf_builder: AutoCommandBufferBuilder<PrimaryAutoCommandBuffer>, queue: Arc<Queue>) -> Result<(), ChalametPIRError> {
-    cmd_buf_builder
-        .build()
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
-        .execute(queue.clone())
+        builder
+            .copy_buffer(CopyBufferInfo::buffers(src_buf, dst_buf.clone()))
+            .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?;
+
+        builder.build().map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+    };
+
+    cmd_buf
+        .execute(queue)
         .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
         .then_signal_fence_and_flush()
         .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
         .wait(None)
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?;
+
+    Ok(dst_buf)
+}
+
+pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+    Buffer::new_slice::<u8>(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::STORAGE_BUFFER,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS | MemoryTypeFilter::PREFER_DEVICE,
+            ..Default::default()
+        },
+        byte_len,
+    )
+    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)
 }
 
 pub fn mat_x_mat(
