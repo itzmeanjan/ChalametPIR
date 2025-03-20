@@ -13,9 +13,13 @@ pub enum ChalametPIRError {
     VulkanDeviceCreationFailed,
     VulkanSourceBufferCreationFailed,
     VulkanEmptyBufferCreationFailed,
+    VulkanCommandBufferBuilderCreationFailed,
     VulkanCommandBufferRecordingFailed,
     VulkanCommandBufferBuildingFailed,
     VulkanCommandBufferExecutionFailed,
+    VulkanComputeShaderLoadingFailed,
+    VulkanComputePipelineCreationFailed,
+    VulkanDescriptorSetCreationFailed,
 
     // Matrix
     InvalidMatrixDimension,
@@ -53,9 +57,13 @@ impl Display for ChalametPIRError {
             Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue."),
             Self::VulkanSourceBufferCreationFailed => write!(f, "Failed to create a Vulkan transfer source buffer."),
             Self::VulkanEmptyBufferCreationFailed => write!(f, "Failed to create an empty Vulkan storage buffer."),
+            Self::VulkanCommandBufferBuilderCreationFailed => write!(f, "Failed to create a Vulkan command buffer builder."),
             Self::VulkanCommandBufferRecordingFailed => write!(f, "Failed to record command in a Vulkan command buffer."),
             Self::VulkanCommandBufferBuildingFailed => write!(f, "Failed to build a Vulkan command buffer."),
-            Self::VulkanCommandBufferExecutionFailed => write!(f, "Failed to execute the Vulkan command buffer"),
+            Self::VulkanCommandBufferExecutionFailed => write!(f, "Failed to execute the Vulkan command buffer."),
+            Self::VulkanComputeShaderLoadingFailed => write!(f, "Failed to load Vulkan compute shader module."),
+            Self::VulkanComputePipelineCreationFailed => write!(f, "Failed to create Vulkan compute pipeline."),
+            Self::VulkanDescriptorSetCreationFailed => write!(f, "Failed to create descriptor set for Vulkan compute pipeline."),
 
             Self::InvalidMatrixDimension => write!(f, "The number of rows and columns in the matrix must be non-zero."),
             Self::IncompatibleDimensionForMatrixMultiplication => write!(f, "The matrix dimensions do not allow multiplication."),

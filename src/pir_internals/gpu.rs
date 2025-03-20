@@ -1,15 +1,21 @@
-use super::matrix::Matrix;
+use super::{mat_x_mat_shader, matrix::Matrix};
 use crate::ChalametPIRError;
 use std::sync::Arc;
 use vulkano::{
     VulkanLibrary,
     buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
     command_buffer::{
-        AutoCommandBufferBuilder, CopyBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator,
+        AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract,
+        allocator::StandardCommandBufferAllocator,
     },
+    descriptor_set::{DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator},
     device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter, StandardMemoryAllocator},
+    pipeline::{
+        ComputePipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo, compute::ComputePipelineCreateInfo,
+        layout::PipelineDescriptorSetLayoutCreateInfo,
+    },
     sync::GpuFuture,
 };
 
@@ -116,6 +122,75 @@ pub fn finish_transfer(cmd_buf_builder: AutoCommandBufferBuilder<PrimaryAutoComm
     cmd_buf_builder
         .build()
         .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+        .execute(queue.clone())
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
+        .then_signal_fence_and_flush()
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
+        .wait(None)
+        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)
+}
+
+pub fn mat_x_mat(
+    device: Arc<Device>,
+    queue: Arc<Queue>,
+    command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
+    left_mat: Subbuffer<[u8]>,
+    rhs_mat: Subbuffer<[u8]>,
+    res_mat: Subbuffer<[u8]>,
+    wg_count: [u32; 3],
+) -> Result<(), ChalametPIRError> {
+    let pipeline = {
+        let cs = mat_x_mat_shader::load(device.clone()).map_err(|_| ChalametPIRError::VulkanComputeShaderLoadingFailed)?;
+        let cs_entry_point = cs.entry_point("main").ok_or(ChalametPIRError::VulkanComputeShaderLoadingFailed)?;
+        let compute_stage = PipelineShaderStageCreateInfo::new(cs_entry_point);
+
+        let layout = PipelineLayout::new(
+            device.clone(),
+            PipelineDescriptorSetLayoutCreateInfo::from_stages([&compute_stage])
+                .into_pipeline_layout_create_info(device.clone())
+                .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?,
+        )
+        .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?;
+
+        ComputePipeline::new(device.clone(), None, ComputePipelineCreateInfo::stage_layout(compute_stage, layout.clone()))
+            .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?
+    };
+
+    let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(device.clone(), Default::default()));
+    let descriptor_set_layout = pipeline.layout().set_layouts()[0].clone();
+    let descriptor_set = DescriptorSet::new(
+        descriptor_set_allocator,
+        descriptor_set_layout,
+        [
+            WriteDescriptorSet::buffer(0, left_mat),
+            WriteDescriptorSet::buffer(1, rhs_mat),
+            WriteDescriptorSet::buffer(2, res_mat),
+        ],
+        [],
+    )
+    .map_err(|_| ChalametPIRError::VulkanDescriptorSetCreationFailed)?;
+
+    let command_buffer = {
+        let mut command_buffer_builder =
+            AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
+                .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
+
+        unsafe {
+            command_buffer_builder
+                .bind_pipeline_compute(pipeline.clone())
+                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?
+                .bind_descriptor_sets(PipelineBindPoint::Compute, pipeline.layout().clone(), 0, descriptor_set)
+                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?
+                .dispatch(wg_count)
+                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?;
+        }
+
+        command_buffer_builder
+            .build()
+            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+    };
+
+    command_buffer
         .execute(queue.clone())
         .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
         .then_signal_fence_and_flush()
