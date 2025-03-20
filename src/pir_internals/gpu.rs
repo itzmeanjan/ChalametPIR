@@ -3,11 +3,8 @@ use crate::ChalametPIRError;
 use std::sync::Arc;
 use vulkano::{
     VulkanLibrary,
-    buffer::{Buffer, BufferCreateInfo, BufferUsage, Subbuffer},
-    command_buffer::{
-        AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, PrimaryAutoCommandBuffer, PrimaryCommandBufferAbstract,
-        allocator::StandardCommandBufferAllocator,
-    },
+    buffer::{Buffer, BufferCreateFlags, BufferCreateInfo, BufferUsage, Subbuffer},
+    command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, PrimaryCommandBufferAbstract, allocator::StandardCommandBufferAllocator},
     descriptor_set::{DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator},
     device::{Device, DeviceCreateInfo, DeviceExtensions, Queue, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
@@ -96,7 +93,7 @@ pub fn transfer_mat_to_device(
         },
         matrix_as_bytes,
     )
-    .map_err(|_| ChalametPIRError::VulkanSourceBufferCreationFailed)?;
+    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)?;
 
     let dst_buf = Buffer::new_slice::<u8>(
         mem_alloc.clone(),
@@ -110,7 +107,7 @@ pub fn transfer_mat_to_device(
         },
         matrix_byte_len,
     )
-    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)?;
+    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)?;
 
     let cmd_buf = {
         let mut builder = AutoCommandBufferBuilder::primary(cmd_buf_alloc, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
@@ -134,7 +131,7 @@ pub fn transfer_mat_to_device(
     Ok(dst_buf)
 }
 
-pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+pub fn get_empty_host_readable_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
     Buffer::new_slice::<u8>(
         memory_allocator.clone(),
         BufferCreateInfo {
@@ -147,7 +144,23 @@ pub fn get_empty_storage_buffer(memory_allocator: Arc<StandardMemoryAllocator>, 
         },
         byte_len,
     )
-    .map_err(|_| ChalametPIRError::VulkanEmptyBufferCreationFailed)
+    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)
+}
+
+pub fn get_empty_device_local_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
+    Buffer::new_slice::<u8>(
+        memory_allocator.clone(),
+        BufferCreateInfo {
+            usage: BufferUsage::STORAGE_BUFFER,
+            ..Default::default()
+        },
+        AllocationCreateInfo {
+            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+            ..Default::default()
+        },
+        byte_len,
+    )
+    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)
 }
 
 pub fn mat_x_mat(
