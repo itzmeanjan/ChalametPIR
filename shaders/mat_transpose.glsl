@@ -21,7 +21,7 @@ void main() {
   const uint row_idx = gl_GlobalInvocationID.x;
   const uint col_idx = gl_GlobalInvocationID.y;
 
-  if (row_idx >= matrix_a.cols || col_idx >= matrix_a.rows) {
+  if (row_idx >= matrix_a.rows || col_idx >= matrix_a.cols) {
     return;
   }
 
@@ -30,6 +30,8 @@ void main() {
     matrix_b.cols = matrix_a.rows;
   }
 
-  matrix_b.elems[row_idx * matrix_a.rows + col_idx] =
-      matrix_a.elems[row_idx * matrix_a.cols + col_idx];
+  const uint src_index = row_idx * matrix_a.cols + col_idx;
+  const uint dst_index = col_idx * matrix_a.rows + row_idx;
+
+  matrix_b.elems[dst_index] = matrix_a.elems[src_index];
 }
