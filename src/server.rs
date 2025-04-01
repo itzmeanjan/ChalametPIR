@@ -8,7 +8,7 @@ use crate::{
         params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
     },
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 /// Represents the server in the Keyword Private Information Retrieval (PIR) scheme ChalametPIR.
 ///
@@ -16,7 +16,23 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub struct Server {
     /// This matrix is kept in transposed form to optimize memory access pattern in vector matrix multiplication of server-respond function.
+    #[cfg(not(feature = "gpu"))]
     transposed_parsed_db_mat_d: Matrix,
+
+    #[cfg(feature = "gpu")]
+    device: Arc<gpu::Device>,
+    #[cfg(feature = "gpu")]
+    queue: Arc<gpu::Queue>,
+    #[cfg(feature = "gpu")]
+    mem_alloc: Arc<gpu::StandardMemoryAllocator>,
+    #[cfg(feature = "gpu")]
+    cmd_buf_alloc: Arc<gpu::StandardCommandBufferAllocator>,
+    #[cfg(feature = "gpu")]
+    transposed_parsed_db_mat_d_num_rows: u32,
+    #[cfg(feature = "gpu")]
+    transposed_parsed_db_mat_d_num_cols: u32,
+    #[cfg(feature = "gpu")]
+    transposed_parsed_db_mat_d_buf: gpu::Subbuffer<[u8]>,
 }
 
 impl Server {
@@ -140,9 +156,20 @@ impl Server {
 
         let hint_bytes = hint_mat_m_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
         let filter_param_bytes: Vec<u8> = filter.to_bytes();
-        let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose();
 
-        Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
+        Ok((
+            Server {
+                device,
+                queue,
+                mem_alloc,
+                cmd_buf_alloc,
+                transposed_parsed_db_mat_d_num_rows: parsed_db_mat_d.num_cols(),
+                transposed_parsed_db_mat_d_num_cols: parsed_db_mat_d.num_rows(),
+                transposed_parsed_db_mat_d_buf,
+            },
+            hint_bytes,
+            filter_param_bytes,
+        ))
     }
 
     /// Responds to a client query.
@@ -160,11 +187,41 @@ impl Server {
     /// # Returns
     ///
     /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
+    #[cfg(not(feature = "gpu"))]
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
         let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
 
         Ok(response_vector.to_bytes())
+    }
+
+    #[cfg(feature = "gpu")]
+    pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
+        let query_vector = Matrix::from_bytes(query)?;
+        if branch_opt_util::unlikely(!(query_vector.num_rows() == 1 && query_vector.num_cols() == self.transposed_parsed_db_mat_d_num_cols)) {
+            return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
+        }
+
+        let response_vec_byte_len = (2 * std::mem::size_of::<u32>()
+            + (query_vector.num_rows() * self.transposed_parsed_db_mat_d_num_rows) as usize * std::mem::size_of::<u32>())
+            as u64;
+        let response_vec_wg_count = [1, self.transposed_parsed_db_mat_d_num_rows.div_ceil(32), 1];
+
+        let query_vec_buf = gpu::transfer_mat_to_device(self.queue.clone(), self.mem_alloc.clone(), self.cmd_buf_alloc.clone(), query_vector)?;
+        let response_vec_buf = gpu::get_empty_host_readable_buffer(self.mem_alloc.clone(), response_vec_byte_len)?;
+
+        gpu::vec_x_mat(
+            self.device.clone(),
+            self.queue.clone(),
+            self.cmd_buf_alloc.clone(),
+            query_vec_buf,
+            self.transposed_parsed_db_mat_d_buf.clone(),
+            response_vec_buf.clone(),
+            response_vec_wg_count,
+        )?;
+
+        let response_bytes = response_vec_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
+        Ok(response_bytes)
     }
 
     /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.
