@@ -81,8 +81,6 @@ impl Server {
         Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }
 
-    /// TODO: Update following documentation before publishing.
-    ///
     /// Sets up the keyword **P**rivate **I**nformation **R**etrieval scheme's server with a given Key-Value database.
     ///
     /// This function takes a database as input and generates the necessary matrices and parameters for responding to client queries.
@@ -195,6 +193,21 @@ impl Server {
         Ok(response_vector.to_bytes())
     }
 
+    /// Responds to a client query.
+    ///
+    /// This function takes a client's query (in byte form) as input and uses the transposed database matrix to compute the response.
+    /// The process involves:
+    /// 1. **Query Vectorization:** Converts the query bytes into a row vector. Returns an error if conversion fails.
+    /// 2. **Vector-Matrix Multiplication:** Performs a row vector-transposed matrix multiplication of the query vector and the server's transposed database matrix. This is optimized for efficiency due to the transposition performed during server setup. Returns an error if multiplication fails.
+    /// 3. **Response Serialization:** Converts the resulting response vector into a byte vector for transmission to the client. Returns an error if conversion fails.
+    ///
+    /// # Arguments
+    ///
+    /// * `query`: The client's query, represented as a byte slice.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
     #[cfg(feature = "gpu")]
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
