@@ -1,3 +1,4 @@
+pub use std::sync::Arc;
 pub use vulkano::{
     buffer::Subbuffer,
     command_buffer::allocator::StandardCommandBufferAllocator,
@@ -7,7 +8,6 @@ pub use vulkano::{
 
 use super::{mat_transpose_shader, mat_x_mat_shader, matrix::Matrix, vec_x_mat_shader};
 use crate::ChalametPIRError;
-use std::sync::Arc;
 use vulkano::{
     VulkanLibrary,
     buffer::{Buffer, BufferCreateInfo, BufferUsage},

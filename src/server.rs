@@ -8,7 +8,7 @@ use crate::{
         params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
     },
 };
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 /// Represents the server in the Keyword Private Information Retrieval (PIR) scheme ChalametPIR.
 ///
@@ -20,13 +20,13 @@ pub struct Server {
     transposed_parsed_db_mat_d: Matrix,
 
     #[cfg(feature = "gpu")]
-    device: Arc<gpu::Device>,
+    device: gpu::Arc<gpu::Device>,
     #[cfg(feature = "gpu")]
-    queue: Arc<gpu::Queue>,
+    queue: gpu::Arc<gpu::Queue>,
     #[cfg(feature = "gpu")]
-    mem_alloc: Arc<gpu::StandardMemoryAllocator>,
+    mem_alloc: gpu::Arc<gpu::StandardMemoryAllocator>,
     #[cfg(feature = "gpu")]
-    cmd_buf_alloc: Arc<gpu::StandardCommandBufferAllocator>,
+    cmd_buf_alloc: gpu::Arc<gpu::StandardCommandBufferAllocator>,
     #[cfg(feature = "gpu")]
     transposed_parsed_db_mat_d_num_rows: u32,
     #[cfg(feature = "gpu")]
@@ -205,7 +205,8 @@ impl Server {
         let response_vec_byte_len = (2 * std::mem::size_of::<u32>()
             + (query_vector.num_rows() * self.transposed_parsed_db_mat_d_num_rows) as usize * std::mem::size_of::<u32>())
             as u64;
-        let response_vec_wg_count = [1, self.transposed_parsed_db_mat_d_num_rows.div_ceil(32), 1];
+        let response_vec_len_sqrt = (self.transposed_parsed_db_mat_d_num_rows as f32).sqrt() as u32 + 1;
+        let response_vec_wg_count = [response_vec_len_sqrt.div_ceil(8), response_vec_len_sqrt.div_ceil(8), 1];
 
         let query_vec_buf = gpu::transfer_mat_to_device(self.queue.clone(), self.mem_alloc.clone(), self.cmd_buf_alloc.clone(), query_vector)?;
         let response_vec_buf = gpu::get_empty_host_readable_buffer(self.mem_alloc.clone(), response_vec_byte_len)?;
