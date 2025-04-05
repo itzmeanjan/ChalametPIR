@@ -11,5 +11,3 @@ pub mod gpu;
 pub mod mat_transpose_shader;
 #[cfg(feature = "gpu")]
 pub mod mat_x_mat_shader;
-#[cfg(feature = "gpu")]
-pub mod vec_x_mat_shader;

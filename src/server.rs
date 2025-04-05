@@ -16,23 +16,7 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub struct Server {
     /// This matrix is kept in transposed form to optimize memory access pattern in vector matrix multiplication of server-respond function.
-    #[cfg(not(feature = "gpu"))]
     transposed_parsed_db_mat_d: Matrix,
-
-    #[cfg(feature = "gpu")]
-    device: gpu::Arc<gpu::Device>,
-    #[cfg(feature = "gpu")]
-    queue: gpu::Arc<gpu::Queue>,
-    #[cfg(feature = "gpu")]
-    mem_alloc: gpu::Arc<gpu::StandardMemoryAllocator>,
-    #[cfg(feature = "gpu")]
-    cmd_buf_alloc: gpu::Arc<gpu::StandardCommandBufferAllocator>,
-    #[cfg(feature = "gpu")]
-    transposed_parsed_db_mat_d_num_rows: u32,
-    #[cfg(feature = "gpu")]
-    transposed_parsed_db_mat_d_num_cols: u32,
-    #[cfg(feature = "gpu")]
-    transposed_parsed_db_mat_d_buf: gpu::Subbuffer<[u8]>,
 }
 
 impl Server {
@@ -131,7 +115,7 @@ impl Server {
         let pub_mat_a_buf = gpu::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), pub_mat_a)?;
         let parsed_db_mat_d_buf = gpu::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), parsed_db_mat_d.clone())?;
         let hint_mat_m_buf = gpu::get_empty_host_readable_buffer(mem_alloc.clone(), hint_mat_m_byte_len)?;
-        let transposed_parsed_db_mat_d_buf = gpu::get_empty_device_local_buffer(mem_alloc.clone(), parsed_db_mat_d_byte_len)?;
+        let transposed_parsed_db_mat_d_buf = gpu::get_empty_host_readable_buffer(mem_alloc.clone(), parsed_db_mat_d_byte_len)?;
 
         gpu::mat_x_mat(
             device.clone(),
@@ -152,22 +136,15 @@ impl Server {
             parsed_db_mat_d_wg_count,
         )?;
 
+        let transposed_parsed_db_mat_d = Matrix::from_bytes(
+            &transposed_parsed_db_mat_d_buf
+                .read()
+                .map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?,
+        )?;
         let hint_bytes = hint_mat_m_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
         let filter_param_bytes: Vec<u8> = filter.to_bytes();
 
-        Ok((
-            Server {
-                device,
-                queue,
-                mem_alloc,
-                cmd_buf_alloc,
-                transposed_parsed_db_mat_d_num_rows: parsed_db_mat_d.num_cols(),
-                transposed_parsed_db_mat_d_num_cols: parsed_db_mat_d.num_rows(),
-                transposed_parsed_db_mat_d_buf,
-            },
-            hint_bytes,
-            filter_param_bytes,
-        ))
+        Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
     }
 
     /// Responds to a client query.
@@ -185,57 +162,11 @@ impl Server {
     /// # Returns
     ///
     /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
-    #[cfg(not(feature = "gpu"))]
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
         let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
 
         Ok(response_vector.to_bytes())
-    }
-
-    /// Responds to a client query.
-    ///
-    /// This function takes a client's query (in byte form) as input and uses the transposed database matrix to compute the response.
-    /// The process involves:
-    /// 1. **Query Vectorization:** Converts the query bytes into a row vector. Returns an error if conversion fails.
-    /// 2. **Vector-Matrix Multiplication:** Performs a row vector-transposed matrix multiplication of the query vector and the server's transposed database matrix. This is optimized for efficiency due to the transposition performed during server setup. Returns an error if multiplication fails.
-    /// 3. **Response Serialization:** Converts the resulting response vector into a byte vector for transmission to the client. Returns an error if conversion fails.
-    ///
-    /// # Arguments
-    ///
-    /// * `query`: The client's query, represented as a byte slice.
-    ///
-    /// # Returns
-    ///
-    /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
-    #[cfg(feature = "gpu")]
-    pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
-        let query_vector = Matrix::from_bytes(query)?;
-        if branch_opt_util::unlikely(!(query_vector.num_rows() == 1 && query_vector.num_cols() == self.transposed_parsed_db_mat_d_num_cols)) {
-            return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
-        }
-
-        let response_vec_byte_len = (2 * std::mem::size_of::<u32>()
-            + (query_vector.num_rows() * self.transposed_parsed_db_mat_d_num_rows) as usize * std::mem::size_of::<u32>())
-            as u64;
-        let response_vec_len_sqrt = (self.transposed_parsed_db_mat_d_num_rows as f32).sqrt() as u32 + 1;
-        let response_vec_wg_count = [response_vec_len_sqrt.div_ceil(8), response_vec_len_sqrt.div_ceil(8), 1];
-
-        let query_vec_buf = gpu::transfer_mat_to_device(self.queue.clone(), self.mem_alloc.clone(), self.cmd_buf_alloc.clone(), query_vector)?;
-        let response_vec_buf = gpu::get_empty_host_readable_buffer(self.mem_alloc.clone(), response_vec_byte_len)?;
-
-        gpu::vec_x_mat(
-            self.device.clone(),
-            self.queue.clone(),
-            self.cmd_buf_alloc.clone(),
-            query_vec_buf,
-            self.transposed_parsed_db_mat_d_buf.clone(),
-            response_vec_buf.clone(),
-            response_vec_wg_count,
-        )?;
-
-        let response_bytes = response_vec_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
-        Ok(response_bytes)
     }
 
     /// This is required to ensure that LWE PIR protocol is correct. See eq. 8 in section 5.1 of the FrodoPIR paper @ https://ia.cr/2022/981.

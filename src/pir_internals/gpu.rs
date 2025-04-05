@@ -6,7 +6,7 @@ pub use vulkano::{
     memory::allocator::StandardMemoryAllocator,
 };
 
-use super::{mat_transpose_shader, mat_x_mat_shader, matrix::Matrix, vec_x_mat_shader};
+use super::{mat_transpose_shader, mat_x_mat_shader, matrix::Matrix};
 use crate::ChalametPIRError;
 use vulkano::{
     VulkanLibrary,
@@ -146,23 +146,7 @@ pub fn get_empty_host_readable_buffer(memory_allocator: Arc<StandardMemoryAlloca
             ..Default::default()
         },
         AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::HOST_RANDOM_ACCESS | MemoryTypeFilter::PREFER_DEVICE,
-            ..Default::default()
-        },
-        byte_len,
-    )
-    .map_err(|_| ChalametPIRError::VulkanBufferCreationFailed)
-}
-
-pub fn get_empty_device_local_buffer(memory_allocator: Arc<StandardMemoryAllocator>, byte_len: u64) -> Result<Subbuffer<[u8]>, ChalametPIRError> {
-    Buffer::new_slice::<u8>(
-        memory_allocator.clone(),
-        BufferCreateInfo {
-            usage: BufferUsage::STORAGE_BUFFER,
-            ..Default::default()
-        },
-        AllocationCreateInfo {
-            memory_type_filter: MemoryTypeFilter::PREFER_DEVICE,
+            memory_type_filter: MemoryTypeFilter::HOST_SEQUENTIAL_WRITE | MemoryTypeFilter::PREFER_DEVICE,
             ..Default::default()
         },
         byte_len,
@@ -270,75 +254,6 @@ pub fn mat_transpose(
         descriptor_set_allocator,
         descriptor_set_layout,
         [WriteDescriptorSet::buffer(0, orig_mat), WriteDescriptorSet::buffer(1, res_mat)],
-        [],
-    )
-    .map_err(|_| ChalametPIRError::VulkanDescriptorSetCreationFailed)?;
-
-    let command_buffer = {
-        let mut command_buffer_builder =
-            AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
-
-        unsafe {
-            command_buffer_builder
-                .bind_pipeline_compute(pipeline.clone())
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?
-                .bind_descriptor_sets(PipelineBindPoint::Compute, pipeline.layout().clone(), 0, descriptor_set)
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?
-                .dispatch(wg_count)
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?;
-        }
-
-        command_buffer_builder
-            .build()
-            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
-    };
-
-    command_buffer
-        .execute(queue.clone())
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
-        .then_signal_fence_and_flush()
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)?
-        .wait(None)
-        .map_err(|_| ChalametPIRError::VulkanCommandBufferExecutionFailed)
-}
-
-pub fn vec_x_mat(
-    device: Arc<Device>,
-    queue: Arc<Queue>,
-    command_buffer_allocator: Arc<StandardCommandBufferAllocator>,
-    left_vec: Subbuffer<[u8]>,
-    rhs_transposed_mat: Subbuffer<[u8]>,
-    res_vec: Subbuffer<[u8]>,
-    wg_count: [u32; 3],
-) -> Result<(), ChalametPIRError> {
-    let pipeline = {
-        let cs = vec_x_mat_shader::load(device.clone()).map_err(|_| ChalametPIRError::VulkanComputeShaderLoadingFailed)?;
-        let cs_entry_point = cs.entry_point("main").ok_or(ChalametPIRError::VulkanComputeShaderLoadingFailed)?;
-        let compute_stage = PipelineShaderStageCreateInfo::new(cs_entry_point);
-
-        let layout = PipelineLayout::new(
-            device.clone(),
-            PipelineDescriptorSetLayoutCreateInfo::from_stages([&compute_stage])
-                .into_pipeline_layout_create_info(device.clone())
-                .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?,
-        )
-        .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?;
-
-        ComputePipeline::new(device.clone(), None, ComputePipelineCreateInfo::stage_layout(compute_stage, layout.clone()))
-            .map_err(|_| ChalametPIRError::VulkanComputePipelineCreationFailed)?
-    };
-
-    let descriptor_set_allocator = Arc::new(StandardDescriptorSetAllocator::new(device.clone(), Default::default()));
-    let descriptor_set_layout = pipeline.layout().set_layouts()[0].clone();
-    let descriptor_set = DescriptorSet::new(
-        descriptor_set_allocator,
-        descriptor_set_layout,
-        [
-            WriteDescriptorSet::buffer(0, left_vec),
-            WriteDescriptorSet::buffer(1, rhs_transposed_mat),
-            WriteDescriptorSet::buffer(2, res_vec),
-        ],
         [],
     )
     .map_err(|_| ChalametPIRError::VulkanDescriptorSetCreationFailed)?;
