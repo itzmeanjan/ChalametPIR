@@ -118,9 +118,9 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.4.0"
+chalamet_pir = "=0.5.0"
 # Or, if you want to offload server-setup to a GPU.
-# chalamet_pir = { version = "=0.4.0", features = ["gpu"] }
+# chalamet_pir = { version = "=0.5.0", features = ["gpu"] }
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
 ```

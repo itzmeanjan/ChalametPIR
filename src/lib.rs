@@ -19,9 +19,9 @@
 //!
 //! ```toml
 //! [dependencies]
-//! chalametpir = "=0.4.0"
+//! chalametpir = "=0.5.0"
 //! # Or, if you want to offload server-setup to GPU.
-//! # chalamet_pir = { version = "=0.4.0", features = ["gpu"] }
+//! # chalamet_pir = { version = "=0.5.0", features = ["gpu"] }
 //! rand = "=0.9.0"
 //! rand_chacha = "=0.9.0"
 //! ```
