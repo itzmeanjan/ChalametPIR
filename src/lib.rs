@@ -8,6 +8,7 @@
 //! * **Secure Private Information Retrieval:**  Allows clients to retrieve value from a PIR server without disclosing corresponding key. Server learns neither the value nor the queried key.
 //! * **Error Handling:** Comprehensive error handling to catch and report issues during setup, query generation, and response processing.
 //! * **Flexibility:** Supports both 3-wise and 4-wise XOR Binary Fuse Filters, allowing a choice between trade-offs in client/server computation and communication costs.
+//! * **Efficient:** It supports offloading parts of the server-setup phase to a GPU, using Vulkan Compute API, which can drastically reduce time taken to setup PIR server, for large key-value databases.
 //!
 //! ## Usage
 //!
@@ -19,6 +20,8 @@
 //! ```toml
 //! [dependencies]
 //! chalametpir = "=0.4.0"
+//! # Or, if you want to offload server-setup to GPU.
+//! # chalamet_pir = { version = "=0.4.0", features = ["gpu"] }
 //! rand = "=0.9.0"
 //! rand_chacha = "=0.9.0"
 //! ```

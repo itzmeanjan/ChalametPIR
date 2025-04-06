@@ -9,14 +9,12 @@ built on top of FrodoPIR - a practical, single-server, stateful LWE -based PIR s
 - Binary Fuse Filter was proposed in https://arxiv.org/pdf/2201.01174.
 - And ChalametPIR was proposed in https://ia.cr/2024/092.
 
-ChalametPIR allows a client to retrieve a specific value from a key-value database on a server without revealing the requested key.
-It uses Binary Fuse Filters to encode key-value pairs in form of a matrix. And then it applies FrodoPIR on the encoded database matrix
-to actually retrieve values for requested keys.
+ChalametPIR allows a client to retrieve a specific value from a key-value database, stored on a server, without revealing the requested key to the server. It uses Binary Fuse Filters to encode key-value pairs in form of a matrix. And then it applies FrodoPIR on the encoded database matrix to actually retrieve values for requested keys.
 
 The protocol has two participants:
 
 **Server:**
-* **`setup`:** Initializes the server with a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, compile-time configurable). Returns serialized representations of the hint matrix and filter parameters. This phase can be completed in offline and it's completely client agnostic.
+* **`setup`:** Initializes the server with a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, configurable at compile time). It returns serialized representations of the hint matrix and filter parameters. This phase can be completed offline and is completely client-agnostic. But it is very compute-intensive, which is why this library allows you to offload expensive matrix multiplication and transposition to a GPU, gated behind the opt-in `gpu` feature. For large key-value databases (e.g., with >= $2^{18}$ entries), I recommend enabling the `gpu` feature, as it can significantly reduce the cost of the server-setup phase.
 * **`respond`:** Processes a client's query and returns an encrypted response vector.
 
 **Client:**
@@ -28,8 +26,8 @@ To paint a more practical picture, imagine, we have a database with $2^{20}$ (~1
 
 Machine Type | Machine | Kernel | Compiler | Memory Read Speed
 --- | --- | --- | --- | ---
-aarch64 server | AWS EC2 `m8g.8xlarge` | `Linux 6.8.0-1021-aws aarch64` | `rustc 1.84.1 (e71f9a9a9 2025-01-27)` | 28.25 GB/s
-x86_64 server | AWS EC2 `m7i.8xlarge` | `Linux 6.8.0-1021-aws x86_64` | `rustc 1.84.1 (e71f9a9a9 2025-01-27)` | 10.33 GB/s
+aarch64 server | AWS EC2 `m8g.8xlarge` | `Linux 6.8.0-1021-aws aarch64` | `rustc 1.85.1 (e71f9a9a9 2025-01-27)` | 28.25 GB/s
+x86_64 server | AWS EC2 `m7i.8xlarge` | `Linux 6.8.0-1021-aws x86_64` | `rustc 1.85.1 (e71f9a9a9 2025-01-27)` | 10.33 GB/s
 
 and this implementation of ChalametPIR is compiled with specified compiler, in `optimized` profile. See [Cargo.toml](./Cargo.toml).
 
@@ -44,21 +42,33 @@ Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` serve
 `server_respond` | 18.01 milliseconds | 32.16 milliseconds | 0.56
 `client_process_response` | 11.73 microseconds | 16.75 microseconds | 0.7
 
-> [!NOTE]
-> In above table, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
-
 So, the median bandwidth of the `server_respond` algorithm, which needs to traverse through the whole processed database, is
 - (a) For `aarch64` server: 53.82 GB/s
 - (b) For `x86_64` server: 30.12 GB/s
 
+For demonstrating the effectiveness of offloading parts of the server-setup phase to a GPU, I benchmark it on AWS EC2 instance `g6e.8xlarge`, which features a NVIDIA L40S Tensor Core GPU and $3^{rd}$ generation AMD EPYC CPUs.
+
+Number of entries in DB | Key length | Value length | `(a)` Time taken to setup PIR server on CPU | `(b)` Time taken to setup PIR server, partially offloading to GPU | Ratio `a / b`
+:-- | --: | --: | --: | --: | --:
+$2^{16}$ | 32B | 1kB | 19.55 seconds | 19.39 seconds | 1.0
+$2^{18}$ | 32B | 1kB | 6.0 minutes | 2.23 minutes | 2.69
+$2^{20}$ | 32B | 1kB | 25.89 minutes | 25.58 seconds | 60.72
+
+For small key-value databases, it is not worth offloading server-setup to the GPU, but for databases with entries >= $2^{18}$, it is recommended to enable `gpu` feature, when GPU is available.
+
+> [!NOTE]
+> In both of above tables, I show only the median timing measurements, while the DB is encoded using a 3 -wise XOR Binary Fuse Filter. For more results, with more database configurations, see benchmarking [section](#benchmarking) below.
+
 ## Prerequisites
-Rust stable toolchain; see https://rustup.rs for installation guide. MSRV for this crate is 1.84.0.
+Rust stable toolchain; see https://rustup.rs for installation guide. MSRV for this crate is 1.85.0.
 
 ```bash
 # While developing this library, I was using
 $ rustc --version
-rustc 1.84.1 (e71f9a9a9 2025-01-27)
+rustc 1.85.1 (e71f9a9a9 2025-01-27)
 ```
+
+If you plan to offload server-setup to GPU, you need to install Vulkan drivers and library for your target setup. I followed https://linux.how2shout.com/how-to-install-vulkan-on-ubuntu-24-04-or-22-04-lts-linux on Ubuntu 24.04 LTS, with Nvidia GPUs - it was easy to setup.
 
 ## Testing
 The `chalamet_pir` library includes comprehensive tests to ensure functional correctness.
@@ -69,8 +79,12 @@ The `chalamet_pir` library includes comprehensive tests to ensure functional cor
 To run the tests, go to the project's root directory and issue:
 
 ```bash
-cargo test --profile test-release # Custom profile to make tests run faster!
-                                  # Default debug mode is too slow!
+# Custom profile to make tests run faster!
+# Default debug mode is too slow!
+cargo test --profile test-release
+
+# For testing if offloading to GPU works as expected.
+cargo test --features gpu --profile test-release
 ```
 
 
@@ -80,9 +94,12 @@ Performance benchmarks are included to evaluate the efficiency of the PIR scheme
 To run the benchmarks, execute the following command from the root of the project:
 
 ```bash
-cargo bench --all-features --profile optimized # For benchmarking the online phase of the PIR,
-                                               # you need to enable feature `mutate_internal_client_state`,
-                                               # passing `--all-features` does that.
+# For benchmarking the online phase of the PIR, 
+# you need to enable feature `mutate_internal_client_state`.
+cargo bench --features mutate_internal_client_state --profile optimized
+
+# For benchmarking only the server-setup phase, offloaded to the GPU.
+cargo bench --features gpu --profile optimized --bench offline_phase -q server_setup
 ```
 
 > [!WARNING]
@@ -102,6 +119,10 @@ First, add this library crate as a dependency in your Cargo.toml file.
 ```toml
 [dependencies]
 chalamet_pir = "=0.4.0"
+# Or, if you want to offload server-setup to a GPU.
+# chalamet_pir = { version = "=0.4.0", features = ["gpu"] }
+rand = "=0.9.0"
+rand_chacha = "=0.9.0"
 ```
 
 Then, let's code a very simple keyword PIR scheme:
