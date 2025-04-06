@@ -6,6 +6,21 @@ use std::{error::Error, fmt::Display};
 /// It includes errors related to matrix operations, binary fuse filter operations, and PIR operations.
 #[derive(Debug, PartialEq)]
 pub enum ChalametPIRError {
+    // GPU
+    VulkanLibraryNotFound,
+    VulkanInstanceCreationFailed,
+    VulkanPhysicalDeviceNotFound,
+    VulkanDeviceCreationFailed,
+    VulkanBufferCreationFailed,
+    VulkanCommandBufferBuilderCreationFailed,
+    VulkanCommandBufferRecordingFailed,
+    VulkanCommandBufferBuildingFailed,
+    VulkanCommandBufferExecutionFailed,
+    VulkanReadingFromBufferFailed,
+    VulkanComputeShaderLoadingFailed,
+    VulkanComputePipelineCreationFailed,
+    VulkanDescriptorSetCreationFailed,
+
     // Matrix
     InvalidMatrixDimension,
     IncompatibleDimensionForMatrixMultiplication,
@@ -36,6 +51,20 @@ pub enum ChalametPIRError {
 impl Display for ChalametPIRError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::VulkanLibraryNotFound => write!(f, "Failed to load the default Vulkan library for the system."),
+            Self::VulkanInstanceCreationFailed => write!(f, "Failed to create a new instance of Vulkan."),
+            Self::VulkanPhysicalDeviceNotFound => write!(f, "Failed to find a compatible Vulkan physical device."),
+            Self::VulkanDeviceCreationFailed => write!(f, "Failed to create a Vulkan device and associated queue."),
+            Self::VulkanBufferCreationFailed => write!(f, "Failed to create a Vulkan transfer source buffer."),
+            Self::VulkanCommandBufferBuilderCreationFailed => write!(f, "Failed to create a Vulkan command buffer builder."),
+            Self::VulkanCommandBufferRecordingFailed => write!(f, "Failed to record command in a Vulkan command buffer."),
+            Self::VulkanCommandBufferBuildingFailed => write!(f, "Failed to build a Vulkan command buffer."),
+            Self::VulkanCommandBufferExecutionFailed => write!(f, "Failed to execute the Vulkan command buffer."),
+            Self::VulkanReadingFromBufferFailed => write!(f, "Failed to read from Vulkan buuffer."),
+            Self::VulkanComputeShaderLoadingFailed => write!(f, "Failed to load Vulkan compute shader module."),
+            Self::VulkanComputePipelineCreationFailed => write!(f, "Failed to create Vulkan compute pipeline."),
+            Self::VulkanDescriptorSetCreationFailed => write!(f, "Failed to create descriptor set for Vulkan compute pipeline."),
+
             Self::InvalidMatrixDimension => write!(f, "The number of rows and columns in the matrix must be non-zero."),
             Self::IncompatibleDimensionForMatrixMultiplication => write!(f, "The matrix dimensions do not allow multiplication."),
             Self::IncompatibleDimensionForMatrixAddition => write!(f, "The matrix dimensions do not allow addition."),

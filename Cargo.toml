@@ -1,6 +1,6 @@
 [package]
 name = "chalamet_pir"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 resolver = "2"
 rust-version = "1.85.0"
@@ -9,14 +9,22 @@ description = "Simple, Stateful, Single-Server Private Information Retrieval for
 readme = "README.md"
 repository = "https://github.com/itzmeanjan/ChalametPIR.git"
 license = "MPL-2.0"
-keywords = ["priv-info-retrieval", "lwe-pir", "frodo-pir", "chalamet-pir"]
-categories = ["cryptography", "data-structures"]
+keywords = [
+    "priv-info-retrieval",
+    "lwe-pir",
+    "frodo-pir",
+    "chalamet-pir",
+    "gpu",
+]
+categories = ["cryptography", "data-structures", "concurrency"]
 
 [dependencies]
 turboshake = "=0.4.1"
 rayon = "=1.10.0"
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
+vulkano = { version = "=0.35.1", optional = true }
+vulkano-shaders = { version = "=0.35.0", optional = true }
 
 [dev-dependencies]
 test-case = "=3.3.1"
@@ -34,6 +42,7 @@ required-features = ["mutate_internal_client_state"]
 
 [features]
 mutate_internal_client_state = []
+gpu = ["dep:vulkano", "dep:vulkano-shaders"]
 
 [profile.optimized]
 inherits = "release"

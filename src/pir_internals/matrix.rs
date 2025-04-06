@@ -19,8 +19,8 @@ use super::error::ChalametPIRError;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Matrix {
-    rows: usize,
-    cols: usize,
+    rows: u32,
+    cols: u32,
     elems: Vec<u32>,
 }
 
@@ -36,12 +36,12 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
     ///     Returns an error if either rows or cols is zero.
-    pub fn new(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
+    pub fn new(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             Ok(Matrix {
                 rows,
                 cols,
-                elems: vec![0; rows * cols],
+                elems: vec![0; (rows * cols) as usize],
             })
         } else {
             Err(ChalametPIRError::InvalidMatrixDimension)
@@ -60,9 +60,9 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
     ///     Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
-    pub fn from_values(rows: usize, cols: usize, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
+    pub fn from_values(rows: u32, cols: u32, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
-            if branch_opt_util::likely(rows * cols == values.len()) {
+            if branch_opt_util::likely((rows * cols) as usize == values.len()) {
                 Ok(Matrix { rows, cols, elems: values })
             } else {
                 Err(ChalametPIRError::InvalidNumberOfElementsInMatrix)
@@ -73,16 +73,20 @@ impl Matrix {
     }
 
     #[inline(always)]
-    pub const fn num_rows(&self) -> usize {
+    pub const fn num_rows(&self) -> u32 {
         self.rows
     }
     #[inline(always)]
-    pub const fn num_cols(&self) -> usize {
+    pub const fn num_cols(&self) -> u32 {
         self.cols
     }
     #[inline(always)]
     pub fn num_elems(&self) -> usize {
         self.elems.len()
+    }
+    #[inline(always)]
+    pub fn num_bytes(&self) -> usize {
+        std::mem::size_of_val(&self.rows) + std::mem::size_of_val(&self.cols) + std::mem::size_of::<u32>() * (self.rows * self.cols) as usize
     }
 
     /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
@@ -103,13 +107,13 @@ impl Matrix {
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
 
-        let mut res_elems = vec![0u32; res_num_rows * res_num_cols];
+        let mut res_elems = vec![0u32; (res_num_rows * res_num_cols) as usize];
 
         res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
             let r_idx = 0;
             let c_idx = lin_idx;
 
-            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
+            *v = (0..self.cols as usize).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
         });
 
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
@@ -126,14 +130,14 @@ impl Matrix {
     /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
     ///     Returns an error if rows is zero.
     #[cfg(test)]
-    pub fn identity(rows: usize) -> Result<Matrix, ChalametPIRError> {
+    pub fn identity(rows: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(rows == 0) {
             return Err(ChalametPIRError::InvalidMatrixDimension);
         }
 
         let mut mat = Matrix::new(rows, rows)?;
 
-        (0..rows).for_each(|idx| {
+        (0..mat.rows as usize).for_each(|idx| {
             mat[(idx, idx)] = 1;
         });
 
@@ -148,8 +152,8 @@ impl Matrix {
     pub fn transpose(&self) -> Matrix {
         let mut res = unsafe { Matrix::new(self.cols, self.rows).unwrap_unchecked() };
 
-        (0..self.cols)
-            .flat_map(|ridx| (0..self.rows).map(move |cidx| (ridx, cidx)))
+        (0..self.cols as usize)
+            .flat_map(|ridx| (0..self.rows as usize).map(move |cidx| (ridx, cidx)))
             .for_each(|(ridx, cidx)| {
                 res[(ridx, cidx)] = self[(cidx, ridx)];
             });
@@ -169,12 +173,12 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
     ///     Returns an error if either rows or cols is zero.
-    pub fn generate_from_seed(rows: usize, cols: usize, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
+    pub fn generate_from_seed(rows: u32, cols: u32, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
         let mut hasher = TurboShake128::default();
         hasher.absorb(seed);
         hasher.finalize::<{ TurboShake128::DEFAULT_DOMAIN_SEPARATOR }>();
 
-        let mut elems = vec![0u32; rows * cols];
+        let mut elems = vec![0u32; (rows * cols) as usize];
         let elems_byte_len = elems.len() * std::mem::size_of::<u32>();
 
         unsafe {
@@ -200,7 +204,7 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new row/ column vector if the input is valid (rows or cols is 1).
     ///     Returns an error if neither rows nor cols is 1.
-    pub fn sample_from_uniform_ternary_dist(rows: usize, cols: usize) -> Result<Matrix, ChalametPIRError> {
+    pub fn sample_from_uniform_ternary_dist(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return Err(ChalametPIRError::InvalidDimensionForVector);
         }
@@ -211,7 +215,7 @@ impl Matrix {
         let mut rng = ChaCha8Rng::from_os_rng();
         let mut vec = Matrix::new(rows, cols)?;
 
-        let num_elems = rows * cols;
+        let num_elems = vec.num_elems();
         let mut elem_idx = 0;
 
         while branch_opt_util::likely(elem_idx < num_elems) {
@@ -318,8 +322,8 @@ impl Matrix {
                 let max_value_byte_len = unsafe { db.values().map(|v| v.len()).max().unwrap_unchecked() };
                 let max_value_bit_len = max_value_byte_len * 8;
 
-                let rows = filter.num_fingerprints;
-                let cols: usize = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len);
+                let rows = filter.num_fingerprints as u32;
+                let cols = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len) as u32;
 
                 let mut mat = Matrix::new(rows, cols)?;
                 let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
@@ -346,13 +350,13 @@ impl Matrix {
                     let mat_row_idx1 = h012[found + 1] as usize;
                     let mat_row_idx2 = h012[found + 2] as usize;
 
-                    let elems = (0..cols)
+                    let elems = (0..cols as usize)
                         .map(|elem_idx| {
-                            let f1 = mat.elems[mat_row_idx1 * cols + elem_idx];
+                            let f1 = mat.elems[mat_row_idx1 * cols as usize + elem_idx];
                             (elem_idx, row[elem_idx].wrapping_sub(f1))
                         })
                         .map(|(elem_idx, elem)| {
-                            let f2 = mat.elems[mat_row_idx2 * cols + elem_idx];
+                            let f2 = mat.elems[mat_row_idx2 * cols as usize + elem_idx];
                             (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
                         })
                         .map(|(elem_idx, elem)| {
@@ -361,8 +365,8 @@ impl Matrix {
                         })
                         .collect::<Vec<u32>>();
 
-                    let fingerprints_begin_at = mat_row_idx0 * cols;
-                    let fingerprints_end_at = fingerprints_begin_at + cols;
+                    let fingerprints_begin_at = mat_row_idx0 * cols as usize;
+                    let fingerprints_end_at = fingerprints_begin_at + cols as usize;
 
                     mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
                 }
@@ -396,10 +400,10 @@ impl Matrix {
 
         let (h0, h1, h2) = binary_fuse_filter::hash_batch_for_3_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
-        let recovered_row = (0..self.cols)
-            .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols + elem_idx]))
-            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h1 as usize * self.cols + elem_idx])))
-            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h2 as usize * self.cols + elem_idx])))
+        let recovered_row = (0..self.cols as usize)
+            .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols as usize + elem_idx]))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h1 as usize * self.cols as usize + elem_idx])))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h2 as usize * self.cols as usize + elem_idx])))
             .map(|(elem_idx, elem)| elem.wrapping_add((binary_fuse_filter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask) & mat_elem_mask)
             .collect::<Vec<u32>>();
 
@@ -450,8 +454,8 @@ impl Matrix {
                 let max_value_byte_len = unsafe { db.values().map(|v| v.len()).max().unwrap_unchecked() };
                 let max_value_bit_len = max_value_byte_len * 8;
 
-                let rows = filter.num_fingerprints;
-                let cols: usize = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len);
+                let rows = filter.num_fingerprints as u32;
+                let cols = (HASHED_KEY_BIT_LEN + max_value_bit_len + 8).div_ceil(mat_elem_bit_len) as u32;
 
                 let mut mat = Matrix::new(rows, cols)?;
                 let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
@@ -481,17 +485,17 @@ impl Matrix {
                     let mat_row_idx2 = h0123[found + 2] as usize;
                     let mat_row_idx3 = h0123[found + 3] as usize;
 
-                    let elems = (0..cols)
+                    let elems = (0..cols as usize)
                         .map(|elem_idx| {
-                            let f1 = mat.elems[mat_row_idx1 * cols + elem_idx];
+                            let f1 = mat.elems[mat_row_idx1 * cols as usize + elem_idx];
                             (elem_idx, row[elem_idx].wrapping_sub(f1))
                         })
                         .map(|(elem_idx, elem)| {
-                            let f2 = mat.elems[mat_row_idx2 * cols + elem_idx];
+                            let f2 = mat.elems[mat_row_idx2 * cols as usize + elem_idx];
                             (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
                         })
                         .map(|(elem_idx, elem)| {
-                            let f2 = mat.elems[mat_row_idx3 * cols + elem_idx];
+                            let f2 = mat.elems[mat_row_idx3 * cols as usize + elem_idx];
                             (elem_idx, elem.wrapping_sub(f2) & mat_elem_mask)
                         })
                         .map(|(elem_idx, elem)| {
@@ -500,8 +504,8 @@ impl Matrix {
                         })
                         .collect::<Vec<u32>>();
 
-                    let fingerprints_begin_at = mat_row_idx0 * cols;
-                    let fingerprints_end_at = fingerprints_begin_at + cols;
+                    let fingerprints_begin_at = mat_row_idx0 * cols as usize;
+                    let fingerprints_end_at = fingerprints_begin_at + cols as usize;
 
                     mat.elems[fingerprints_begin_at..fingerprints_end_at].copy_from_slice(&elems);
                 }
@@ -535,11 +539,11 @@ impl Matrix {
 
         let (h0, h1, h2, h3) = binary_fuse_filter::hash_batch_for_4_wise_xor_filter(hash, filter.segment_length, filter.segment_count_length);
 
-        let recovered_row = (0..self.cols)
-            .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols + elem_idx]))
-            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h1 as usize * self.cols + elem_idx])))
-            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h2 as usize * self.cols + elem_idx])))
-            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h3 as usize * self.cols + elem_idx])))
+        let recovered_row = (0..self.cols as usize)
+            .map(|elem_idx| (elem_idx, self.elems[h0 as usize * self.cols as usize + elem_idx]))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h1 as usize * self.cols as usize + elem_idx])))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h2 as usize * self.cols as usize + elem_idx])))
+            .map(|(elem_idx, elem)| (elem_idx, elem.wrapping_add(self.elems[h3 as usize * self.cols as usize + elem_idx])))
             .map(|(elem_idx, elem)| elem.wrapping_add((binary_fuse_filter::mix(hash, elem_idx as u64) as u32) & mat_elem_mask) & mat_elem_mask)
             .collect::<Vec<u32>>();
 
@@ -567,7 +571,7 @@ impl Matrix {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let encoded_elems_byte_len = std::mem::size_of::<u32>() * self.rows * self.cols;
+        let encoded_elems_byte_len = std::mem::size_of::<u32>() * (self.rows * self.cols) as usize;
 
         let offset0 = 0;
         let offset1 = offset0 + std::mem::size_of_val(&self.rows);
@@ -594,8 +598,8 @@ impl Matrix {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Matrix, ChalametPIRError> {
         const OFFSET0: usize = 0;
-        const OFFSET1: usize = OFFSET0 + std::mem::size_of::<usize>();
-        const OFFSET2: usize = OFFSET1 + std::mem::size_of::<usize>();
+        const OFFSET1: usize = OFFSET0 + std::mem::size_of::<u32>();
+        const OFFSET2: usize = OFFSET1 + std::mem::size_of::<u32>();
 
         if branch_opt_util::unlikely(bytes.len() <= OFFSET2) {
             return Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes);
@@ -603,11 +607,11 @@ impl Matrix {
 
         let (rows, cols) = unsafe {
             (
-                usize::from_le_bytes(bytes.get_unchecked(OFFSET0..OFFSET1).try_into().unwrap()),
-                usize::from_le_bytes(bytes.get_unchecked(OFFSET1..OFFSET2).try_into().unwrap()),
+                u32::from_le_bytes(bytes.get_unchecked(OFFSET0..OFFSET1).try_into().unwrap()),
+                u32::from_le_bytes(bytes.get_unchecked(OFFSET1..OFFSET2).try_into().unwrap()),
             )
         };
-        let num_elems = rows * cols;
+        let num_elems = (rows * cols) as usize;
 
         if branch_opt_util::unlikely(num_elems == 0) {
             return Err(ChalametPIRError::FailedToDeserializeMatrixFromBytes);
@@ -638,7 +642,7 @@ impl Index<(usize, usize)> for Matrix {
     #[inline(always)]
     fn index(&self, index: (usize, usize)) -> &Self::Output {
         let (ridx, cidx) = index;
-        unsafe { self.elems.get_unchecked(ridx * self.cols + cidx) }
+        unsafe { self.elems.get_unchecked(ridx * self.cols as usize + cidx) }
     }
 }
 
@@ -646,7 +650,7 @@ impl IndexMut<(usize, usize)> for Matrix {
     #[inline(always)]
     fn index_mut(&mut self, index: (usize, usize)) -> &mut Self::Output {
         let (ridx, cidx) = index;
-        unsafe { self.elems.get_unchecked_mut(ridx * self.cols + cidx) }
+        unsafe { self.elems.get_unchecked_mut(ridx * self.cols as usize + cidx) }
     }
 }
 
@@ -667,13 +671,13 @@ impl<'b> Mul<&'b Matrix> for &Matrix {
             return Err(ChalametPIRError::IncompatibleDimensionForMatrixMultiplication);
         }
 
-        let mut res_elems = vec![0u32; self.rows * rhs.cols];
+        let mut res_elems = vec![0u32; (self.rows * rhs.cols) as usize];
 
         res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
-            let r_idx = lin_idx / rhs.cols;
-            let c_idx = lin_idx - r_idx * rhs.cols;
+            let r_idx = lin_idx / rhs.cols as usize;
+            let c_idx = lin_idx - r_idx * rhs.cols as usize;
 
-            *v = (0..self.cols).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(k, c_idx)])));
+            *v = (0..self.cols as usize).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(k, c_idx)])));
         });
 
         Matrix::from_values(self.rows, rhs.cols, res_elems)
@@ -697,7 +701,7 @@ impl<'b> Add<&'b Matrix> for &Matrix {
             return Err(ChalametPIRError::IncompatibleDimensionForMatrixAddition);
         }
 
-        let mut res_elems = vec![0u32; self.rows * rhs.cols];
+        let mut res_elems = vec![0u32; (self.rows * rhs.cols) as usize];
 
         res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
             *v = unsafe { self.elems.get_unchecked(lin_idx).wrapping_add(*rhs.elems.get_unchecked(lin_idx)) };
@@ -850,7 +854,7 @@ pub mod test {
     #[test_case(0, 1024 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of rows must be greater than zero")]
     #[test_case(1024, 0 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of columns must be greater than zero")]
     #[test_case(0, 0 => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Both number of rows and columns must be greater than zero")]
-    fn new_empty_matrix_constructor_api(num_rows: usize, num_cols: usize) -> Result<Matrix, ChalametPIRError> {
+    fn new_empty_matrix_constructor_api(num_rows: u32, num_cols: u32) -> Result<Matrix, ChalametPIRError> {
         Matrix::new(num_rows, num_cols)
     }
 
@@ -859,13 +863,13 @@ pub mod test {
     #[test_case(1024, 0, vec![] => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Number of columns must be greater than zero")]
     #[test_case(0, 0, vec![] => matches Err(ChalametPIRError::InvalidMatrixDimension);  "Both number of rows and columns must be greater than zero")]
     #[test_case(1024, 1024, vec![0u32; 1024 * 1024 -1] => matches Err(ChalametPIRError::InvalidNumberOfElementsInMatrix);  "Number of elements must be equal to number of rows times number of columns")]
-    fn from_values_matrix_constructor_api(num_rows: usize, num_cols: usize, elems: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
+    fn from_values_matrix_constructor_api(num_rows: u32, num_cols: u32, elems: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         Matrix::from_values(num_rows, num_cols, elems)
     }
 
     #[test_case((1024,1),(1,1024) => matches Ok(_); "Matrix multiplication should work for valid dimensions")]
     #[test_case((1024,1),(1024, 1) => matches Err(ChalametPIRError::IncompatibleDimensionForMatrixMultiplication); "Matrix multiplication should not work for incompatible dimensions")]
-    fn matrix_multiplication_failures(lhs_mat_dim: (usize, usize), rhs_mat_dim: (usize, usize)) -> Result<Matrix, ChalametPIRError> {
+    fn matrix_multiplication_failures(lhs_mat_dim: (u32, u32), rhs_mat_dim: (u32, u32)) -> Result<Matrix, ChalametPIRError> {
         let (lhs_mat_rows, lhs_mat_cols) = lhs_mat_dim;
         let lhs_mat = Matrix::new(lhs_mat_rows, lhs_mat_cols)?;
 
@@ -877,7 +881,7 @@ pub mod test {
 
     #[test_case((1024,1),(1024, 1) => matches Ok(_); "Matrix addition should work for valid dimensions")]
     #[test_case((1024,1),(1, 1024) => matches Err(ChalametPIRError::IncompatibleDimensionForMatrixAddition); "Matrix addition should not work for incompatible dimensions")]
-    fn matrix_addition_failures(lhs_mat_dim: (usize, usize), rhs_mat_dim: (usize, usize)) -> Result<Matrix, ChalametPIRError> {
+    fn matrix_addition_failures(lhs_mat_dim: (u32, u32), rhs_mat_dim: (u32, u32)) -> Result<Matrix, ChalametPIRError> {
         let (lhs_mat_rows, lhs_mat_cols) = lhs_mat_dim;
         let lhs_mat = Matrix::new(lhs_mat_rows, lhs_mat_cols)?;
 
@@ -890,8 +894,8 @@ pub mod test {
     #[test]
     fn matrix_multiplication_is_correct() {
         const NUM_ATTEMPT_MATRIX_MULTIPLICATIONS: usize = 100;
-        const MIN_MATRIX_DIM: usize = 1;
-        const MAX_MATRIX_DIM: usize = 1024;
+        const MIN_MATRIX_DIM: u32 = 1;
+        const MAX_MATRIX_DIM: u32 = 1024;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
@@ -920,8 +924,8 @@ pub mod test {
     #[test]
     fn row_vector_transposed_matrix_multiplication_works() {
         const NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS: usize = 100;
-        const MIN_ROW_VECTOR_DIM: usize = 1;
-        const MAX_ROW_VECTOR_DIM: usize = 1024;
+        const MIN_ROW_VECTOR_DIM: u32 = 1;
+        const MAX_ROW_VECTOR_DIM: u32 = 1024;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
@@ -934,9 +938,10 @@ pub mod test {
             let vec_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
             let mat_num_rows = vec_num_cols;
             let mat_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+            let mat_num_elems = (mat_num_rows * mat_num_cols) as usize;
 
             let row_vector = Matrix::generate_from_seed(vec_num_rows, vec_num_cols, &seed).expect("Row vector must be generated from seed");
-            let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_rows * mat_num_cols]).expect("Matrix of ones must be created");
+            let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_elems]).expect("Matrix of ones must be created");
             let transposed_all_ones = all_ones.transpose();
 
             let res_row_vector = row_vector
@@ -945,7 +950,9 @@ pub mod test {
 
             let expected_res_row_vector = {
                 let sum_of_elems_in_row_vector = row_vector.elems.iter().fold(0u32, |acc, &cur| acc.wrapping_add(cur));
-                Matrix::from_values(vec_num_rows, mat_num_cols, vec![sum_of_elems_in_row_vector; mat_num_cols]).expect("Expected row vector must be created")
+                let row_vec_elems = vec![sum_of_elems_in_row_vector; mat_num_cols as usize];
+
+                Matrix::from_values(vec_num_rows, mat_num_cols, row_vec_elems).expect("Expected row vector must be created")
             };
             assert_eq!(expected_res_row_vector, res_row_vector);
 
@@ -956,8 +963,8 @@ pub mod test {
     #[test]
     fn matrix_addition_is_correct() {
         const NUM_ATTEMPT_MATRIX_ADDITIONS: usize = 100;
-        const MIN_MATRIX_DIM: usize = 1;
-        const MAX_MATRIX_DIM: usize = 1024;
+        const MIN_MATRIX_DIM: u32 = 1;
+        const MAX_MATRIX_DIM: u32 = 1024;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
@@ -987,7 +994,7 @@ pub mod test {
     #[test_case(1024, 1024  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Either number of rows or columns must be 1 in vector")]
     #[test_case(0, 1024  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Number of rows in row vector must be 1")]
     #[test_case(1024, 0  => matches Err(ChalametPIRError::InvalidDimensionForVector); "Number of columns in column vector must be 1")]
-    fn sampling_from_uniform_ternary_dist_works(num_rows: usize, num_cols: usize) -> Result<Matrix, ChalametPIRError> {
+    fn sampling_from_uniform_ternary_dist_works(num_rows: u32, num_cols: u32) -> Result<Matrix, ChalametPIRError> {
         Matrix::sample_from_uniform_ternary_dist(num_rows, num_cols)
     }
 
@@ -1012,8 +1019,8 @@ pub mod test {
     #[test]
     fn serialized_matrix_can_be_deserialized() {
         const NUM_ATTEMPT_MATRIX_SERIALIZATIONS: usize = 100;
-        const MIN_MATRIX_DIM: usize = 1;
-        const MAX_MATRIX_DIM: usize = 1024;
+        const MIN_MATRIX_DIM: u32 = 1;
+        const MAX_MATRIX_DIM: u32 = 1024;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 

@@ -42,7 +42,7 @@ impl Client {
         let filter = BinaryFuseFilter::from_bytes(filter_param_bytes)?;
 
         let pub_mat_a_num_rows = LWE_DIMENSION;
-        let pub_mat_a_num_cols = filter.num_fingerprints;
+        let pub_mat_a_num_cols = filter.num_fingerprints as u32;
 
         let pub_mat_a = Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ)?;
         let hint_mat_m = Matrix::from_bytes(hint_bytes)?;
@@ -225,7 +225,7 @@ impl Client {
                 let hashed_key = binary_fuse_filter::hash_of_key(key);
                 let hash = binary_fuse_filter::mix256(&hashed_key, &self.filter.seed);
 
-                let recovered_row = (0..response_vector.num_cols())
+                let recovered_row = (0..response_vector.num_cols() as usize)
                     .map(|idx| {
                         let unscaled_res = response_vector[(0, idx)].wrapping_sub(secret_vec_c[(0, idx)]);
 
