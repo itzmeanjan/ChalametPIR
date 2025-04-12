@@ -35,7 +35,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
-    ///     Returns an error if either rows or cols is zero.
+    ///   Returns an error if either rows or cols is zero.
     pub fn new(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             Ok(Matrix {
@@ -59,7 +59,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
-    ///     Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
+    ///   Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
     pub fn from_values(rows: u32, cols: u32, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             if branch_opt_util::likely((rows * cols) as usize == values.len()) {
@@ -98,7 +98,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
-    ///     Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
+    ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
     pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
@@ -128,7 +128,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
-    ///     Returns an error if rows is zero.
+    ///   Returns an error if rows is zero.
     #[cfg(test)]
     pub fn identity(rows: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(rows == 0) {
@@ -172,7 +172,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
-    ///     Returns an error if either rows or cols is zero.
+    ///   Returns an error if either rows or cols is zero.
     pub fn generate_from_seed(rows: u32, cols: u32, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
         let mut hasher = TurboShake128::default();
         hasher.absorb(seed);
@@ -203,7 +203,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new row/ column vector if the input is valid (rows or cols is 1).
-    ///     Returns an error if neither rows nor cols is 1.
+    ///   Returns an error if neither rows nor cols is 1.
     pub fn sample_from_uniform_ternary_dist(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return Err(ChalametPIRError::InvalidDimensionForVector);
@@ -251,7 +251,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -279,7 +279,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
-    ///     Returns an error if the key is not found or if an error occurs during value recovery.
+    ///   Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_encoded_kv_database<const ARITY: u32>(
         &self,
@@ -309,7 +309,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -390,7 +390,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
-    ///     Returns an error if the key is not found or if an error occurs during value recovery.
+    ///   Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
@@ -441,7 +441,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     fn from_kv_database_with_4_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
