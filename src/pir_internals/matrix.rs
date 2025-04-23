@@ -5,7 +5,7 @@ use crate::pir_internals::{
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use rayon::{prelude::*, result};
+use rayon::prelude::*;
 use std::{
     collections::HashMap,
     ops::{Add, Index, IndexMut, Mul},
@@ -1136,5 +1136,33 @@ pub mod test {
 
         let computed_bpe = filter.bits_per_entry();
         assert!(computed_bpe <= EXPECTED_BPE.ceil());
+    }
+
+    #[test]
+    fn row_wise_compressed_matrix_can_be_decompressed() {
+        const ARITY: u32 = 3;
+
+        const MIN_NUM_KV_PAIRS: usize = 1_000;
+        const MAX_NUM_KV_PAIRS: usize = 10_000;
+
+        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
+        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+
+        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
+            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
+                let kv_db = generate_random_kv_database(num_kv_pairs);
+                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+                let (db_mat, _) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                    .expect("Must be able to encode key-value database as matrix");
+
+                let compressed_matrix = db_mat.clone().row_wise_compress(mat_elem_bit_len).expect("Matrix compression must work");
+                let decompressed_matrix = compressed_matrix
+                    .row_wise_decompress(mat_elem_bit_len, db_mat.num_cols())
+                    .expect("Matrix decompresson must work");
+
+                assert_eq!(db_mat, decompressed_matrix);
+            }
+        }
     }
 }
