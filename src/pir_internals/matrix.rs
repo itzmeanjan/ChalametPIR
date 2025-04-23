@@ -117,6 +117,32 @@ impl Matrix {
         Ok(res)
     }
 
+    #[cfg(test)]
+    pub fn row_wise_decompress(self, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
+        let compression_factor = u32::BITS / mat_elem_bit_len as u32;
+        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+        let res_num_rows = self.rows;
+        let res_num_cols = self.cols * compression_factor;
+
+        let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+        (0..self.rows as usize)
+            .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+            .for_each(|(src_ridx, src_cidx)| {
+                let dst_mat_col_begins_at = src_cidx * compression_factor as usize;
+
+                for loc_elem_idx in 0..compression_factor as usize {
+                    let rshift_bit_cnt = loc_elem_idx * mat_elem_bit_len;
+                    let significant_bits_for_decompressed_elem = (self[(src_ridx, src_cidx)] >> rshift_bit_cnt) & mat_elem_mask;
+
+                    res[(src_ridx, dst_mat_col_begins_at + loc_elem_idx)] = significant_bits_for_decompressed_elem;
+                }
+            });
+
+        Ok(res)
+    }
+
     /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
     ///
     /// # Arguments
