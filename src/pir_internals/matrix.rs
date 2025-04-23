@@ -122,12 +122,14 @@ impl Matrix {
     }
 
     #[cfg(test)]
-    pub fn row_wise_decompress(self, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
+    pub fn row_wise_decompress(self, mat_elem_bit_len: usize, num_cols: u32) -> Result<Matrix, ChalametPIRError> {
         let compression_factor = u32::BITS / mat_elem_bit_len as u32;
         let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
+        assert_eq!(num_cols.div_ceil(compression_factor), self.cols);
+
         let res_num_rows = self.rows;
-        let res_num_cols = self.cols * compression_factor;
+        let res_num_cols = num_cols;
 
         let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
 
@@ -135,12 +137,16 @@ impl Matrix {
             .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
             .for_each(|(src_ridx, src_cidx)| {
                 let dst_mat_col_begins_at = src_cidx * compression_factor as usize;
+                let dst_mat_col_ends_at = (dst_mat_col_begins_at + compression_factor as usize).min(num_cols as usize);
 
-                for loc_elem_idx in 0..compression_factor as usize {
+                let mut loc_elem_idx = 0;
+
+                while dst_mat_col_begins_at + loc_elem_idx < dst_mat_col_ends_at {
                     let rshift_bit_cnt = loc_elem_idx * mat_elem_bit_len;
                     let significant_bits_for_decompressed_elem = (self[(src_ridx, src_cidx)] >> rshift_bit_cnt) & mat_elem_mask;
 
                     res[(src_ridx, dst_mat_col_begins_at + loc_elem_idx)] = significant_bits_for_decompressed_elem;
+                    loc_elem_idx += 1;
                 }
             });
 
