@@ -5,7 +5,7 @@ use crate::pir_internals::{
 };
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use rayon::prelude::*;
+use rayon::{prelude::*, result};
 use std::{
     collections::HashMap,
     ops::{Add, Index, IndexMut, Mul},
@@ -87,6 +87,34 @@ impl Matrix {
     #[inline(always)]
     pub fn num_bytes(&self) -> usize {
         std::mem::size_of_val(&self.rows) + std::mem::size_of_val(&self.cols) + std::mem::size_of::<u32>() * (self.rows * self.cols) as usize
+    }
+
+    pub fn row_wise_compress(self, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
+        let compression_factor = u32::BITS / mat_elem_bit_len as u32;
+        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+        let res_num_rows = self.rows;
+        let res_num_cols = self.cols.div_ceil(compression_factor);
+
+        let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+        (0..res_num_rows as usize)
+            .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+            .for_each(|(ridx, cidx)| {
+                let src_mat_col_begins_at = cidx * compression_factor as usize;
+
+                let mut compressed_elem = 0u32;
+                for loc_elem_idx in 0..compression_factor as usize {
+                    let significant_bits_from_lsb = self[(ridx, src_mat_col_begins_at + loc_elem_idx)] & mat_elem_mask;
+                    let lshift_bit_cnt = loc_elem_idx * mat_elem_bit_len;
+
+                    compressed_elem |= significant_bits_from_lsb << lshift_bit_cnt;
+                }
+
+                res[(ridx, cidx)] = compressed_elem;
+            });
+
+        Ok(res)
     }
 
     /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
