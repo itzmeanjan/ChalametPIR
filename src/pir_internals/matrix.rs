@@ -102,13 +102,17 @@ impl Matrix {
             .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
             .for_each(|(ridx, cidx)| {
                 let src_mat_col_begins_at = cidx * compression_factor as usize;
+                let src_mat_col_ends_at = (src_mat_col_begins_at + compression_factor as usize).min(self.cols as usize);
 
                 let mut compressed_elem = 0u32;
-                for loc_elem_idx in 0..compression_factor as usize {
+                let mut loc_elem_idx = 0;
+
+                while src_mat_col_begins_at + loc_elem_idx < src_mat_col_ends_at {
                     let significant_bits_from_lsb = self[(ridx, src_mat_col_begins_at + loc_elem_idx)] & mat_elem_mask;
                     let lshift_bit_cnt = loc_elem_idx * mat_elem_bit_len;
 
                     compressed_elem |= significant_bits_from_lsb << lshift_bit_cnt;
+                    loc_elem_idx += 1;
                 }
 
                 res[(ridx, cidx)] = compressed_elem;
