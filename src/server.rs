@@ -12,11 +12,13 @@ use std::collections::HashMap;
 
 /// Represents the server in the Keyword Private Information Retrieval (PIR) scheme ChalametPIR.
 ///
-/// The server stores an encoded database matrix, in transposed form, to optimize query response time.
+/// The server stores an encoded database matrix, in transposed form, and then row-wise compressed, to optimize query response time.
 #[derive(Clone)]
 pub struct Server {
-    /// This matrix is kept in transposed form to optimize memory access pattern in vector matrix multiplication of server-respond function.
-    transposed_parsed_db_mat_d: Matrix,
+    /// This matrix is kept in transposed and then row-wise compressed form to optimize memory access pattern and address memory bandwidth bottleneck, in vector matrix multiplication of server-respond function.
+    compressed_transposed_parsed_db_mat_d: Matrix,
+    mat_elem_bit_len: usize,
+    decompressed_num_cols: u32,
 }
 
 impl Server {
@@ -29,7 +31,7 @@ impl Server {
     /// 3. **Public Matrix Generation:** Generates a public matrix (`pub_mat_a`) using a provided seed (`seed_μ`). The dimensions of this matrix are determined by `LWE_DIMENSION` and the number of fingerprints in the `filter`.
     /// 4. **Hint Matrix Calculation:** Computes the hint matrix (`hint_mat_m`) by multiplying the public matrix and the parsed database matrix.
     /// 5. **Serialization:** Converts the hint matrix and filter parameters into byte vectors for storage and transmission. Returns an error if conversion fails.
-    /// 6. **Transposition:** Transposes the parsed database matrix (`parsed_db_mat_d`) to optimize memory access patterns during execution of the `respond` function.
+    /// 6. **Transposition and Compression:** Transposes the parsed database matrix (`parsed_db_mat_d`) and compresses it row-wise to optimize memory access patterns during execution of the `respond` function.
     ///
     /// # Arguments
     ///
@@ -62,7 +64,18 @@ impl Server {
         let filter_param_bytes: Vec<u8> = filter.to_bytes();
         let transposed_parsed_db_mat_d = parsed_db_mat_d.transpose();
 
-        Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
+        let decompressed_num_cols = transposed_parsed_db_mat_d.num_cols();
+        let compressed_transposed_parsed_db_mat_d = transposed_parsed_db_mat_d.row_wise_compress(mat_elem_bit_len)?;
+
+        Ok((
+            Server {
+                compressed_transposed_parsed_db_mat_d,
+                mat_elem_bit_len,
+                decompressed_num_cols,
+            },
+            hint_bytes,
+            filter_param_bytes,
+        ))
     }
 
     /// Sets up the keyword **P**rivate **I**nformation **R**etrieval scheme's server with a given Key-Value database.
@@ -74,7 +87,7 @@ impl Server {
     /// 3. **Public Matrix Generation:** Generates a public matrix (`pub_mat_a`) using a provided seed (`seed_μ`). The dimensions of this matrix are determined by `LWE_DIMENSION` and the number of fingerprints in the `filter`.
     /// 4. **Hint Matrix Calculation:** Computes the hint matrix (`hint_mat_m`) by multiplying the public matrix and the parsed database matrix.
     /// 5. **Serialization:** Converts the hint matrix and filter parameters into byte vectors for storage and transmission. Returns an error if conversion fails.
-    /// 6. **Transposition:** Transposes the parsed database matrix (`parsed_db_mat_d`) to optimize memory access patterns during execution of the `respond` function.
+    /// 6. **Transposition and Compression:** Transposes the parsed database matrix (`parsed_db_mat_d`) and compresses it row-wise to optimize memory access patterns during execution of the `respond` function.
     ///
     /// # Arguments
     ///
@@ -144,7 +157,18 @@ impl Server {
         let hint_bytes = hint_mat_m_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
         let filter_param_bytes: Vec<u8> = filter.to_bytes();
 
-        Ok((Server { transposed_parsed_db_mat_d }, hint_bytes, filter_param_bytes))
+        let decompressed_num_cols = transposed_parsed_db_mat_d.num_cols();
+        let compressed_transposed_parsed_db_mat_d = transposed_parsed_db_mat_d.row_wise_compress(mat_elem_bit_len)?;
+
+        Ok((
+            Server {
+                compressed_transposed_parsed_db_mat_d,
+                mat_elem_bit_len,
+                decompressed_num_cols,
+            },
+            hint_bytes,
+            filter_param_bytes,
+        ))
     }
 
     /// Responds to a client query.
