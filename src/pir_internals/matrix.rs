@@ -153,6 +153,60 @@ impl Matrix {
         Ok(res)
     }
 
+    /// Performs the multiplication of a row vector (1xN matrix) by a compressed representation of the transpose of a matrix (MxN).
+    ///
+    /// # Arguments
+    ///
+    /// * `rhs` - The compressed matrix to multiply with (MxN). Decompression is performed on the fly.
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
+    ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
+    pub fn row_vector_x_row_wise_compressed_transposed_matrix(
+        &self,
+        rhs: &Matrix,
+        mat_elem_bit_len: usize,
+        decompressed_num_cols: u32,
+    ) -> Result<Matrix, ChalametPIRError> {
+        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == decompressed_num_cols)) {
+            return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
+        }
+
+        let compression_factor = u32::BITS / mat_elem_bit_len as u32;
+        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+        let res_num_rows = self.rows;
+        let res_num_cols = rhs.rows;
+
+        let mut res_elems = vec![0u32; (res_num_rows * res_num_cols) as usize];
+
+        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+            let r_idx = 0;
+            let c_idx = lin_idx;
+
+            *res_elem = (0..rhs.cols as usize).fold(0u32, |acc, compressed_c_idx| {
+                let compressed_elem = rhs[(c_idx, compressed_c_idx)];
+
+                let decompressed_c_idx_begins_at = compressed_c_idx * compression_factor as usize;
+                let decompressed_c_idx_ends_at = (decompressed_c_idx_begins_at + compression_factor as usize).min(decompressed_num_cols as usize);
+
+                acc.wrapping_add(
+                    (decompressed_c_idx_begins_at..decompressed_c_idx_ends_at)
+                        .enumerate()
+                        .fold(0u32, |loc_acc, (i, decompressed_c_idx)| {
+                            let rshift_bit_cnt = i * mat_elem_bit_len;
+                            let decompressed_elem = (compressed_elem >> rshift_bit_cnt) & mat_elem_mask;
+
+                            loc_acc.wrapping_add(self[(r_idx, decompressed_c_idx)].wrapping_mul(decompressed_elem))
+                        }),
+                )
+            });
+        });
+
+        Matrix::from_values(res_num_rows, res_num_cols, res_elems)
+    }
+
     /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
     ///
     /// # Arguments
