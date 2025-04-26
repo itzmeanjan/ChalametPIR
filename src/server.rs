@@ -173,10 +173,10 @@ impl Server {
 
     /// Responds to a client query.
     ///
-    /// This function takes a client's query (in byte form) as input and uses the transposed database matrix to compute the response.
+    /// This function takes a client's query (in byte form) as input and uses the compressed transposed database matrix to compute the response.
     /// The process involves:
     /// 1. **Query Vectorization:** Converts the query bytes into a row vector. Returns an error if conversion fails.
-    /// 2. **Vector-Matrix Multiplication:** Performs a row vector-transposed matrix multiplication of the query vector and the server's transposed database matrix. This is optimized for efficiency due to the transposition performed during server setup. Returns an error if multiplication fails.
+    /// 2. **Vector-Matrix Multiplication:** Performs a multiplication of the query vector (row vector) and the server's compressed transposed database matrix. This is optimized for efficiency, as both transposition and the compression is performed during server setup i.e. the offline phase. Returns an error if multiplication fails.
     /// 3. **Response Serialization:** Converts the resulting response vector into a byte vector for transmission to the client. Returns an error if conversion fails.
     ///
     /// # Arguments
@@ -188,7 +188,11 @@ impl Server {
     /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
-        let response_vector = query_vector.row_vector_x_transposed_matrix(&self.transposed_parsed_db_mat_d)?;
+        let response_vector = query_vector.row_vector_x_row_wise_compressed_transposed_matrix(
+            &self.compressed_transposed_parsed_db_mat_d,
+            self.mat_elem_bit_len,
+            self.decompressed_num_cols,
+        )?;
 
         Ok(response_vector.to_bytes())
     }
