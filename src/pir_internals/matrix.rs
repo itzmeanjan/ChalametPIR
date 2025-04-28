@@ -167,7 +167,6 @@ impl Matrix {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
         }
 
-        let compression_factor = u32::BITS / mat_elem_bit_len as u32;
         let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
         let res_num_rows = self.rows;
@@ -179,23 +178,27 @@ impl Matrix {
             let r_idx = 0;
             let c_idx = lin_idx;
 
-            *res_elem = (0..rhs.cols as usize).fold(0u32, |acc, compressed_c_idx| {
+            *res_elem = (0..self.cols as usize).fold(0u32, |acc, decompressed_c_idx| {
+                let compressed_c_idx = decompressed_c_idx >> 1;
                 let compressed_elem = rhs[(c_idx, compressed_c_idx)];
 
-                let decompressed_c_idx_begins_at = compressed_c_idx * compression_factor as usize;
-                let decompressed_c_idx_ends_at = (decompressed_c_idx_begins_at + compression_factor as usize).min(decompressed_num_cols as usize);
+                let shr_bit_cnt = (decompressed_c_idx & 1) * u16::BITS as usize;
+                let decompressed_elem = (compressed_elem >> shr_bit_cnt) & mat_elem_mask;
 
-                acc.wrapping_add(
-                    (decompressed_c_idx_begins_at..decompressed_c_idx_ends_at)
-                        .enumerate()
-                        .fold(0u32, |loc_acc, (i, decompressed_c_idx)| {
-                            let rshift_bit_cnt = i * mat_elem_bit_len;
-                            let decompressed_elem = (compressed_elem >> rshift_bit_cnt) & mat_elem_mask;
-
-                            loc_acc.wrapping_add(self[(r_idx, decompressed_c_idx)].wrapping_mul(decompressed_elem))
-                        }),
-                )
+                acc.wrapping_add(self[(r_idx, decompressed_c_idx)].wrapping_mul(decompressed_elem))
             });
+
+            // *res_elem = (0..rhs.cols as usize).fold(0u32, |mut acc, compressed_c_idx| {
+            //     let compressed_elem = rhs[(c_idx, compressed_c_idx)];
+            //     let decompressed_elem_cidx = compressed_c_idx * 2;
+
+            //     acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask));
+            //     if decompressed_elem_cidx + 1 < decompressed_num_cols as usize {
+            //         acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> u16::BITS) & mat_elem_mask));
+            //     }
+
+            //     acc
+            // });
         });
 
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
