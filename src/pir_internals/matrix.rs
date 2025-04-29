@@ -157,17 +157,10 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
     ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
-    pub fn row_vector_x_row_wise_compressed_transposed_matrix(
-        &self,
-        rhs: &Matrix,
-        mat_elem_bit_len: usize,
-        decompressed_num_cols: u32,
-    ) -> Result<Matrix, ChalametPIRError> {
+    pub fn row_vector_x_compressed_transposed_matrix(&self, rhs: &Matrix, decompressed_num_cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == decompressed_num_cols)) {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
         }
-
-        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
@@ -178,27 +171,31 @@ impl Matrix {
             let r_idx = 0;
             let c_idx = lin_idx;
 
-            *res_elem = (0..self.cols as usize).fold(0u32, |acc, decompressed_c_idx| {
-                let compressed_c_idx = decompressed_c_idx >> 1;
-                let compressed_elem = rhs[(c_idx, compressed_c_idx)];
+            if self.cols & 1 == 0 {
+                *res_elem = (0..rhs.cols as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                    let decompressed_elem_cidx = compressed_elem_cidx * 2;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
 
-                let shr_bit_cnt = (decompressed_c_idx & 1) * u16::BITS as usize;
-                let decompressed_elem = (compressed_elem >> shr_bit_cnt) & mat_elem_mask;
+                    acc.wrapping_add(
+                        self[(r_idx, decompressed_elem_cidx)]
+                            .wrapping_mul(compressed_elem as u16 as u32)
+                            .wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS)),
+                    )
+                });
+            } else {
+                *res_elem = (0..rhs.cols as usize).fold(0u32, |mut acc, compressed_elem_cidx| {
+                    let decompressed_elem_cidx = compressed_elem_cidx * 2;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
 
-                acc.wrapping_add(self[(r_idx, decompressed_c_idx)].wrapping_mul(decompressed_elem))
-            });
+                    acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem as u16 as u32));
 
-            // *res_elem = (0..rhs.cols as usize).fold(0u32, |mut acc, compressed_c_idx| {
-            //     let compressed_elem = rhs[(c_idx, compressed_c_idx)];
-            //     let decompressed_elem_cidx = compressed_c_idx * 2;
+                    if branch_opt_util::likely(decompressed_elem_cidx + 1 < self.cols as usize) {
+                        acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS))
+                    }
 
-            //     acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask));
-            //     if decompressed_elem_cidx + 1 < decompressed_num_cols as usize {
-            //         acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> u16::BITS) & mat_elem_mask));
-            //     }
-
-            //     acc
-            // });
+                    acc
+                });
+            }
         });
 
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
