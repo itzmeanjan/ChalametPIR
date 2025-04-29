@@ -17,7 +17,6 @@ use std::collections::HashMap;
 pub struct Server {
     /// This matrix is kept in transposed and then row-wise compressed form to optimize memory access pattern and address memory bandwidth bottleneck, in vector matrix multiplication of server-respond function.
     compressed_transposed_parsed_db_mat_d: Matrix,
-    mat_elem_bit_len: usize,
     decompressed_num_cols: u32,
 }
 
@@ -70,7 +69,6 @@ impl Server {
         Ok((
             Server {
                 compressed_transposed_parsed_db_mat_d,
-                mat_elem_bit_len,
                 decompressed_num_cols,
             },
             hint_bytes,
@@ -149,11 +147,7 @@ impl Server {
             parsed_db_mat_d_wg_count,
         )?;
 
-        let transposed_parsed_db_mat_d = Matrix::from_bytes(
-            &transposed_parsed_db_mat_d_buf
-                .read()
-                .map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?,
-        )?;
+        let transposed_parsed_db_mat_d = Matrix::from_bytes(&transposed_parsed_db_mat_d_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?)?;
         let hint_bytes = hint_mat_m_buf.read().map_err(|_| ChalametPIRError::VulkanReadingFromBufferFailed)?.to_vec();
         let filter_param_bytes: Vec<u8> = filter.to_bytes();
 
@@ -163,7 +157,6 @@ impl Server {
         Ok((
             Server {
                 compressed_transposed_parsed_db_mat_d,
-                mat_elem_bit_len,
                 decompressed_num_cols,
             },
             hint_bytes,
@@ -188,11 +181,7 @@ impl Server {
     /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
-        let response_vector = query_vector.row_vector_x_row_wise_compressed_transposed_matrix(
-            &self.compressed_transposed_parsed_db_mat_d,
-            self.mat_elem_bit_len,
-            self.decompressed_num_cols,
-        )?;
+        let response_vector = query_vector.row_vector_x_compressed_transposed_matrix(&self.compressed_transposed_parsed_db_mat_d, self.decompressed_num_cols)?;
 
         Ok(response_vector.to_bytes())
     }
