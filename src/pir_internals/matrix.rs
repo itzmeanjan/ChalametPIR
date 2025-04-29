@@ -393,11 +393,7 @@ impl Matrix {
     /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
     ///   Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
-    fn recover_value_from_encoded_kv_database<const ARITY: u32>(
-        &self,
-        key: &[u8],
-        filter: &binary_fuse_filter::BinaryFuseFilter,
-    ) -> Result<Vec<u8>, ChalametPIRError> {
+    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {

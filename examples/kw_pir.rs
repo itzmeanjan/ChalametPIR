@@ -62,10 +62,7 @@ fn main() {
         .iter()
         .map(|(k, v)| (k.to_le_bytes(), v.encode_utf8(&mut [0u8; 4]).as_bytes().to_vec()))
         .collect::<HashMap<[u8; 8], Vec<u8>>>();
-    let kv_db_as_ref = kv_db_as_bytes
-        .iter()
-        .map(|(k, v)| (k.as_slice(), v.as_slice()))
-        .collect::<HashMap<&[u8], &[u8]>>();
+    let kv_db_as_ref = kv_db_as_bytes.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
     let key_byte_len = std::mem::size_of_val(kv_db.keys().next().unwrap());
     let value_byte_len = std::mem::size_of_val(kv_db.values().next().unwrap());
