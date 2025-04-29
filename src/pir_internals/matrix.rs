@@ -1199,21 +1199,29 @@ pub mod test {
         const MIN_MAT_ELEM_BIT_LEN: usize = 7;
         const MAX_MAT_ELEM_BIT_LEN: usize = 11;
 
-        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                let kv_db = generate_random_kv_database(num_kv_pairs);
-                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+        let mut rng = ChaCha8Rng::from_os_rng();
 
-                let (db_mat, _) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+        const NUM_TEST_ITERATIONS: usize = 1_000;
+        let mut test_iter = 0;
 
-                let compressed_matrix = db_mat.clone().row_wise_compress(mat_elem_bit_len).expect("Matrix compression must work");
-                let decompressed_matrix = compressed_matrix
-                    .row_wise_decompress(mat_elem_bit_len, db_mat.num_cols())
-                    .expect("Matrix decompresson must work");
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN);
 
-                assert_eq!(db_mat, decompressed_matrix);
-            }
+            let kv_db = generate_random_kv_database(num_kv_pairs);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+            let (db_mat, _) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            let compressed_matrix = db_mat.clone().row_wise_compress(mat_elem_bit_len).expect("Matrix compression must work");
+            let decompressed_matrix = compressed_matrix
+                .row_wise_decompress(mat_elem_bit_len, db_mat.num_cols())
+                .expect("Matrix decompresson must work");
+
+            assert_eq!(db_mat, decompressed_matrix);
+
+            test_iter += 1;
         }
     }
 }
