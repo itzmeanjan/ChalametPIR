@@ -11,14 +11,15 @@ use std::collections::HashMap;
 fn test_keyword_pir_with_3_wise_xor_filter() {
     const ARITY: u32 = 3;
 
-    const MIN_NUM_KV_PAIRS: usize = 1_024;
-    const MAX_NUM_KV_PAIRS: usize = 4_096;
+    const MIN_NUM_KV_PAIRS: usize = 1usize << 9;
+    const MAX_NUM_KV_PAIRS: usize = 1usize << 12;
 
     let mut rng = ChaCha8Rng::from_os_rng();
 
-    const NUM_TEST_ITERATIONS: usize = 100;
-    let mut test_iter = 0;
+    const NUM_TEST_ITERATIONS: usize = 1_000;
+    const NUMBER_OF_PIR_QUERIES: usize = 10;
 
+    let mut test_iter = 0;
     while test_iter < NUM_TEST_ITERATIONS {
         let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
 
@@ -31,14 +32,17 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
         let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
         let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
-        let mut kv_iter = kv_db_as_ref.iter();
-        let (&(mut key), &(mut value)) = kv_iter.next().unwrap();
-        let mut is_current_kv_pair_processed = false;
+        let all_keys = kv_db_as_ref.keys().collect::<Vec<_>>();
+        let random_keys = all_keys.choose_multiple(&mut rng, NUMBER_OF_PIR_QUERIES).collect::<Vec<_>>();
+
+        let mut kv_iter = random_keys.iter().map(|&&&k| (k, kv_db_as_ref[k]));
+        let (mut key, mut value) = kv_iter.next().unwrap();
+        let mut is_current_key_processed = false;
 
         loop {
-            if is_current_kv_pair_processed {
+            if is_current_key_processed {
                 match kv_iter.next() {
-                    Some((&k, &v)) => {
+                    Some((k, v)) => {
                         key = k;
                         value = v;
                     }
@@ -55,11 +59,11 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
                     let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
 
                     assert_eq!(value, received_value);
-                    is_current_kv_pair_processed = true;
+                    is_current_key_processed = true;
                 }
                 Err(e) => {
                     assert_eq!(e, ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
-                    is_current_kv_pair_processed = false;
+                    is_current_key_processed = false;
                     continue;
                 }
             }
@@ -73,14 +77,15 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
 fn test_keyword_pir_with_4_wise_xor_filter() {
     const ARITY: u32 = 4;
 
-    const MIN_NUM_KV_PAIRS: usize = 1_024;
-    const MAX_NUM_KV_PAIRS: usize = 4_096;
+    const MIN_NUM_KV_PAIRS: usize = 1usize << 9;
+    const MAX_NUM_KV_PAIRS: usize = 1usize << 12;
 
     let mut rng = ChaCha8Rng::from_os_rng();
 
-    const NUM_TEST_ITERATIONS: usize = 100;
-    let mut test_iter = 0;
+    const NUM_TEST_ITERATIONS: usize = 1_000;
+    const NUMBER_OF_PIR_QUERIES: usize = 10;
 
+    let mut test_iter = 0;
     while test_iter < NUM_TEST_ITERATIONS {
         let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
 
@@ -93,14 +98,17 @@ fn test_keyword_pir_with_4_wise_xor_filter() {
         let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, kv_db_as_ref.clone()).expect("Server setup failed");
         let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
 
-        let mut kv_iter = kv_db_as_ref.iter();
-        let (&(mut key), &(mut value)) = kv_iter.next().unwrap();
-        let mut is_current_kv_pair_processed = false;
+        let all_keys = kv_db_as_ref.keys().collect::<Vec<_>>();
+        let random_keys = all_keys.choose_multiple(&mut rng, NUMBER_OF_PIR_QUERIES).collect::<Vec<_>>();
+
+        let mut kv_iter = random_keys.iter().map(|&&&k| (k, kv_db_as_ref[k]));
+        let (mut key, mut value) = kv_iter.next().unwrap();
+        let mut is_current_key_processed = false;
 
         loop {
-            if is_current_kv_pair_processed {
+            if is_current_key_processed {
                 match kv_iter.next() {
-                    Some((&k, &v)) => {
+                    Some((k, v)) => {
                         key = k;
                         value = v;
                     }
@@ -117,11 +125,11 @@ fn test_keyword_pir_with_4_wise_xor_filter() {
                     let received_value = client.process_response(key, &response_bytes).expect("Client can't extract value from response");
 
                     assert_eq!(value, received_value);
-                    is_current_kv_pair_processed = true;
+                    is_current_key_processed = true;
                 }
                 Err(e) => {
                     assert_eq!(e, ChalametPIRError::ArithmeticOverflowAddingQueryIndicator);
-                    is_current_kv_pair_processed = false;
+                    is_current_key_processed = false;
                     continue;
                 }
             }
