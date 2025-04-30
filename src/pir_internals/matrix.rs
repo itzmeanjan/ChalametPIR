@@ -1189,8 +1189,8 @@ pub mod test {
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+        const MIN_MAT_ELEM_BIT_LEN: usize = 4;
+        const MAX_MAT_ELEM_BIT_LEN: usize = 14;
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
