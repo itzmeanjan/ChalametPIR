@@ -190,7 +190,7 @@ impl Matrix {
                     acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem as u16 as u32));
 
                     if branch_opt_util::likely(decompressed_elem_cidx + 1 < self.cols as usize) {
-                        acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS))
+                        acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS));
                     }
 
                     acc
