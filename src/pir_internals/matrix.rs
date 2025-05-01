@@ -1,6 +1,6 @@
 use crate::pir_internals::{
     binary_fuse_filter, branch_opt_util,
-    params::{HASHED_KEY_BYTE_LEN, SEED_BYTE_LEN},
+    params::{HASHED_KEY_BYTE_LEN, MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SEED_BYTE_LEN},
     serialization,
 };
 use rand::prelude::*;
@@ -90,61 +90,223 @@ impl Matrix {
     }
 
     pub fn row_wise_compress(self, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
-        if mat_elem_bit_len > u16::BITS as usize {
+        if branch_opt_util::unlikely(!(mat_elem_bit_len >= MIN_CIPHER_TEXT_BIT_LEN && mat_elem_bit_len <= MAX_CIPHER_TEXT_BIT_LEN)) {
             return Err(ChalametPIRError::ImpossibleEncodedDBMatrixElementBitLength);
         }
 
-        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
 
-        let res_num_rows = self.rows;
-        let res_num_cols = self.cols.div_ceil(2);
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
-        let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
 
-        (0..res_num_rows as usize)
-            .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
-            .for_each(|(ridx, cidx)| {
-                let decompressed_elem_cidx = cidx * 2;
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
 
-                let compressed_elem = if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
-                    ((self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << u16::BITS) | (self[(ridx, decompressed_elem_cidx)] & mat_elem_mask)
-                } else {
-                    self[(ridx, decompressed_elem_cidx)] & mat_elem_mask
-                };
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
 
-                res[(ridx, cidx)] = compressed_elem;
-            });
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
 
-        Ok(res)
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
+
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 2)] & mat_elem_mask) << (2 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
+
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 2)] & mat_elem_mask) << (2 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 3) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 3)] & mat_elem_mask) << (3 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        }
     }
 
     #[cfg(test)]
     pub fn row_wise_decompress(self, mat_elem_bit_len: usize, num_cols: u32) -> Result<Matrix, ChalametPIRError> {
-        if mat_elem_bit_len > u16::BITS as usize {
+        if branch_opt_util::unlikely(!(mat_elem_bit_len >= MIN_CIPHER_TEXT_BIT_LEN && mat_elem_bit_len <= MAX_CIPHER_TEXT_BIT_LEN)) {
             return Err(ChalametPIRError::ImpossibleEncodedDBMatrixElementBitLength);
         }
 
-        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
 
-        assert_eq!(num_cols.div_ceil(2), self.cols);
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
-        let res_num_rows = self.rows;
-        let res_num_cols = num_cols;
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
 
-        let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
 
-        (0..self.rows as usize)
-            .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
-            .for_each(|(src_ridx, src_cidx)| {
-                let decompressed_elem_cidx = src_cidx * 2;
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
 
-                res[(src_ridx, decompressed_elem_cidx)] = self[(src_ridx, src_cidx)] & mat_elem_mask;
-                if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
-                    res[(src_ridx, decompressed_elem_cidx + 1)] = (self[(src_ridx, src_cidx)] >> u16::BITS) & mat_elem_mask;
-                }
-            });
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+                        let decompressed_elem = self[(src_ridx, src_cidx)];
 
-        Ok(res)
+                        res[(src_ridx, decompressed_elem_cidx)] = decompressed_elem & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (decompressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
+
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+
+                        res[(src_ridx, decompressed_elem_cidx)] = self[(src_ridx, src_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (self[(src_ridx, src_cidx)] >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 2)] = (self[(src_ridx, src_cidx)] >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
+
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+
+                        res[(src_ridx, decompressed_elem_cidx)] = self[(src_ridx, src_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (self[(src_ridx, src_cidx)] >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 2)] = (self[(src_ridx, src_cidx)] >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 3) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 3)] = (self[(src_ridx, src_cidx)] >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        }
     }
 
     /// Performs the multiplication of a row vector (1xN matrix) by a compressed representation of the transpose of a matrix (MxN).
