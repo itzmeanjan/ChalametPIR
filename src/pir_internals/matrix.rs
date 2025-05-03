@@ -478,36 +478,6 @@ impl Matrix {
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
 
-    /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
-    ///
-    /// # Arguments
-    ///
-    /// * `rhs` - The matrix to multiply with (MxN).
-    ///
-    /// # Returns
-    ///
-    /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
-    ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
-    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Result<Matrix, ChalametPIRError> {
-        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
-            return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
-        }
-
-        let res_num_rows = self.rows;
-        let res_num_cols = rhs.rows;
-
-        let mut res_elems = vec![0u32; (res_num_rows * res_num_cols) as usize];
-
-        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
-            let r_idx = 0;
-            let c_idx = lin_idx;
-
-            *v = (0..self.cols as usize).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
-        });
-
-        Matrix::from_values(res_num_rows, res_num_cols, res_elems)
-    }
-
     /// Creates a new identity matrix of requested dimension.
     ///
     /// # Arguments
@@ -1322,7 +1292,7 @@ pub mod test {
     }
 
     #[test]
-    fn row_vector_transposed_matrix_multiplication_works() {
+    fn row_vector_compressed_transposed_matrix_multiplication_works() {
         const NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS: usize = 100;
         const MIN_ROW_VECTOR_DIM: u32 = 1;
         const MAX_ROW_VECTOR_DIM: u32 = 1024;
@@ -1339,13 +1309,15 @@ pub mod test {
             let mat_num_rows = vec_num_cols;
             let mat_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
             let mat_num_elems = (mat_num_rows * mat_num_cols) as usize;
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let row_vector = Matrix::generate_from_seed(vec_num_rows, vec_num_cols, &seed).expect("Row vector must be generated from seed");
             let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_elems]).expect("Matrix of ones must be created");
             let transposed_all_ones = all_ones.transpose();
+            let compressed_transposed_all_ones = transposed_all_ones.row_wise_compress(mat_elem_bit_len).expect("Must be able to row-wise compress matrix");
 
             let res_row_vector = row_vector
-                .row_vector_x_transposed_matrix(&transposed_all_ones)
+                .row_vector_x_compressed_transposed_matrix(&compressed_transposed_all_ones, mat_num_rows, mat_elem_bit_len)
                 .expect("Row vector matrix multiplication must pass");
 
             let expected_res_row_vector = {
