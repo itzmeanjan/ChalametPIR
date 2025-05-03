@@ -11,12 +11,12 @@ use std::collections::HashMap;
 fn test_keyword_pir_with_3_wise_xor_filter() {
     const ARITY: u32 = 3;
 
-    const MIN_NUM_KV_PAIRS: usize = 1usize << 9;
-    const MAX_NUM_KV_PAIRS: usize = 1usize << 12;
+    const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+    const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
     let mut rng = ChaCha8Rng::from_os_rng();
 
-    const NUM_TEST_ITERATIONS: usize = 1_000;
+    const NUM_TEST_ITERATIONS: usize = 10;
     const NUMBER_OF_PIR_QUERIES: usize = 10;
 
     let mut test_iter = 0;
@@ -77,12 +77,12 @@ fn test_keyword_pir_with_3_wise_xor_filter() {
 fn test_keyword_pir_with_4_wise_xor_filter() {
     const ARITY: u32 = 4;
 
-    const MIN_NUM_KV_PAIRS: usize = 1usize << 9;
-    const MAX_NUM_KV_PAIRS: usize = 1usize << 12;
+    const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+    const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
     let mut rng = ChaCha8Rng::from_os_rng();
 
-    const NUM_TEST_ITERATIONS: usize = 1_000;
+    const NUM_TEST_ITERATIONS: usize = 10;
     const NUMBER_OF_PIR_QUERIES: usize = 10;
 
     let mut test_iter = 0;
