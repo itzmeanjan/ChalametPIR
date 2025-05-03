@@ -18,6 +18,7 @@ pub struct Server {
     /// This matrix is kept in transposed and then row-wise compressed form to optimize memory access pattern and address memory bandwidth bottleneck, in vector matrix multiplication of server-respond function.
     compressed_transposed_parsed_db_mat_d: Matrix,
     decompressed_num_cols: u32,
+    mat_elem_bit_len: usize,
 }
 
 impl Server {
@@ -70,6 +71,7 @@ impl Server {
             Server {
                 compressed_transposed_parsed_db_mat_d,
                 decompressed_num_cols,
+                mat_elem_bit_len,
             },
             hint_bytes,
             filter_param_bytes,
@@ -158,6 +160,7 @@ impl Server {
             Server {
                 compressed_transposed_parsed_db_mat_d,
                 decompressed_num_cols,
+                mat_elem_bit_len,
             },
             hint_bytes,
             filter_param_bytes,
@@ -181,7 +184,8 @@ impl Server {
     /// A `Result` containing the response as a byte vector. Returns an error if any error occurs during response computation or serialization.
     pub fn respond(&self, query: &[u8]) -> Result<Vec<u8>, ChalametPIRError> {
         let query_vector = Matrix::from_bytes(query)?;
-        let response_vector = query_vector.row_vector_x_compressed_transposed_matrix(&self.compressed_transposed_parsed_db_mat_d, self.decompressed_num_cols)?;
+        let response_vector =
+            query_vector.row_vector_x_compressed_transposed_matrix(&self.compressed_transposed_parsed_db_mat_d, self.decompressed_num_cols, self.mat_elem_bit_len)?;
 
         Ok(response_vector.to_bytes())
     }
