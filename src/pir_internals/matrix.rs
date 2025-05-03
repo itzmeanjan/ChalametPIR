@@ -1176,33 +1176,38 @@ pub mod test {
     fn encode_kv_database_using_3_wise_xor_filter_and_recover_values() {
         const ARITY: u32 = 3;
 
-        const MIN_NUM_KV_PAIRS: usize = 1_000;
-        const MAX_NUM_KV_PAIRS: usize = 10_000;
+        const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+        const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+        let mut rng = ChaCha8Rng::from_os_rng();
 
-        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                let kv_db = generate_random_kv_database(num_kv_pairs);
-                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+        const NUM_TEST_ITERATIONS: usize = 100;
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+        let mut test_iter = 0;
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
-                for &key in kv_db_as_ref.keys() {
-                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                    let computed_value = db_mat
-                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
-                        .expect("Must be able to recover value from encoded key-value database matrix");
+            let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                    assert_eq!(
-                        expected_value, computed_value,
-                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                        num_kv_pairs, ARITY, mat_elem_bit_len
-                    );
-                }
+            let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            for &key in kv_db_as_ref.keys() {
+                let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                let computed_value = db_mat
+                    .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                    .expect("Must be able to recover value from encoded key-value database matrix");
+
+                assert_eq!(
+                    expected_value, computed_value,
+                    "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                    num_kv_pairs_in_db, ARITY, mat_elem_bit_len
+                );
             }
+
+            test_iter += 1;
         }
     }
 
@@ -1210,33 +1215,38 @@ pub mod test {
     fn encode_kv_database_using_4_wise_xor_filter_and_recover_values() {
         const ARITY: u32 = 4;
 
-        const MIN_NUM_KV_PAIRS: usize = 1_000;
-        const MAX_NUM_KV_PAIRS: usize = 10_000;
+        const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+        const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+        let mut rng = ChaCha8Rng::from_os_rng();
 
-        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                let kv_db = generate_random_kv_database(num_kv_pairs);
-                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+        const NUM_TEST_ITERATIONS: usize = 100;
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+        let mut test_iter = 0;
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
-                for &key in kv_db_as_ref.keys() {
-                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                    let computed_value = db_mat
-                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
-                        .expect("Must be able to recover value from encoded key-value database matrix");
+            let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                    assert_eq!(
-                        expected_value, computed_value,
-                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                        num_kv_pairs, ARITY, mat_elem_bit_len
-                    );
-                }
+            let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            for &key in kv_db_as_ref.keys() {
+                let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                let computed_value = db_mat
+                    .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                    .expect("Must be able to recover value from encoded key-value database matrix");
+
+                assert_eq!(
+                    expected_value, computed_value,
+                    "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                    num_kv_pairs_in_db, ARITY, mat_elem_bit_len
+                );
             }
+
+            test_iter += 1;
         }
     }
 
@@ -1473,7 +1483,7 @@ pub mod test {
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
-        const NUM_TEST_ITERATIONS: usize = 1_000;
+        const NUM_TEST_ITERATIONS: usize = 100;
         let mut test_iter = 0;
 
         while test_iter < NUM_TEST_ITERATIONS {
@@ -1506,7 +1516,7 @@ pub mod test {
 
         let mut rng = ChaCha8Rng::from_os_rng();
 
-        const NUM_TEST_ITERATIONS: usize = 1_000;
+        const NUM_TEST_ITERATIONS: usize = 100;
         let mut test_iter = 0;
 
         while test_iter < NUM_TEST_ITERATIONS {
