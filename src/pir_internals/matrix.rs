@@ -1010,7 +1010,12 @@ impl Neg for &Matrix {
 pub mod test {
     use crate::{
         SEED_BYTE_LEN,
-        pir_internals::{binary_fuse_filter::BinaryFuseFilter, error::ChalametPIRError, matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        pir_internals::{
+            binary_fuse_filter::BinaryFuseFilter,
+            error::ChalametPIRError,
+            matrix::Matrix,
+            params::{MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        },
     };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
@@ -1351,9 +1356,6 @@ pub mod test {
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 4;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 14;
-
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 1_000;
@@ -1361,7 +1363,7 @@ pub mod test {
 
         while test_iter < NUM_TEST_ITERATIONS {
             let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
-            let mat_elem_bit_len = rng.random_range(MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let kv_db = generate_random_kv_database(num_kv_pairs);
             let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
@@ -1387,9 +1389,6 @@ pub mod test {
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 4;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 14;
-
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 1_000;
@@ -1397,7 +1396,7 @@ pub mod test {
 
         while test_iter < NUM_TEST_ITERATIONS {
             let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
-            let mat_elem_bit_len = rng.random_range(MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let kv_db = generate_random_kv_database(num_kv_pairs);
             let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
