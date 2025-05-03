@@ -319,46 +319,161 @@ impl Matrix {
     ///
     /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
     ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
-    pub fn row_vector_x_compressed_transposed_matrix(&self, rhs: &Matrix, decompressed_num_cols: u32) -> Result<Matrix, ChalametPIRError> {
+    pub fn row_vector_x_compressed_transposed_matrix(&self, rhs: &Matrix, decompressed_num_cols: u32, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == decompressed_num_cols)) {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
         }
 
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
+        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
         let mut res_elems = vec![0u32; (res_num_rows * res_num_cols) as usize];
 
-        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
-            let r_idx = 0;
-            let c_idx = lin_idx;
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
 
-            if self.cols & 1 == 0 {
-                *res_elem = (0..rhs.cols as usize).fold(0u32, |acc, compressed_elem_cidx| {
-                    let decompressed_elem_cidx = compressed_elem_cidx * 2;
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
                     let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
 
-                    acc.wrapping_add(
-                        self[(r_idx, decompressed_elem_cidx)]
-                            .wrapping_mul(compressed_elem as u16 as u32)
-                            .wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS)),
-                    )
-                });
-            } else {
-                *res_elem = (0..rhs.cols as usize).fold(0u32, |mut acc, compressed_elem_cidx| {
-                    let decompressed_elem_cidx = compressed_elem_cidx * 2;
-                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
 
-                    acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem as u16 as u32));
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
 
-                    if branch_opt_util::likely(decompressed_elem_cidx + 1 < self.cols as usize) {
-                        acc = acc.wrapping_add(self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul(compressed_elem >> u16::BITS));
-                    }
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
 
-                    acc
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second);
                 });
             }
-        });
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+                        let third = self[(r_idx, decompressed_elem_cidx + 2)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second).wrapping_add(third)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
+
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let third = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second).wrapping_add(third);
+                });
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+                        let third = self[(r_idx, decompressed_elem_cidx + 2)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+                        let fourth = self[(r_idx, decompressed_elem_cidx + 3)].wrapping_mul((compressed_elem >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second).wrapping_add(third).wrapping_add(fourth)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
+
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let third = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let fourth = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second).wrapping_add(third).wrapping_add(fourth);
+                });
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        };
 
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
