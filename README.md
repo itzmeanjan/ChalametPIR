@@ -14,20 +14,31 @@ ChalametPIR allows a client to retrieve a specific value from a key-value databa
 The protocol has two participants:
 
 **Server:**
-* **`setup`:** Initializes the server with a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, configurable at compile time). It returns serialized representations of the hint matrix and filter parameters. This phase can be completed offline and is completely client-agnostic. But it is very compute-intensive, which is why this library allows you to offload expensive matrix multiplication and transposition to a GPU, gated behind the opt-in `gpu` feature. For large key-value databases (e.g., with >= $2^{18}$ entries), I recommend enabling the `gpu` feature, as it can significantly reduce the cost of the server-setup phase.
-* **`respond`:** Processes a client's query and returns an encrypted response vector.
+* **`setup`:** Initializes the server with a seed, a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, configurable at compile time). It returns serialized representations of the hint matrix and filter parameters. This phase can be completed offline and is completely client-agnostic. But it is very compute-intensive, which is why this library allows you to offload expensive matrix multiplication and transposition to a GPU, gated behind the opt-in `gpu` feature. For large key-value databases (e.g., with >= $2^{18}$ entries), I recommend enabling the `gpu` feature, as it can significantly reduce the cost of the server-setup phase.
+* **`respond`:** Processes a client's encrypted query, returning an encrypted response vector.
 
 **Client:**
-* **`setup`:** Initializes the client using the serialized hint matrix and filter parameters received from the server.
-* **`query`:** Generates a PIR query for a given key, which can be sent to server.
+* **`setup`:** Initializes the client using the seed, serialized hint matrix and filter parameters received from the server.
+* **`query`:** Generates an encrypted PIR query for a given key, which can be sent to server.
 * **`process_response`:** Decrypts the server's response and extracts the requested value.
 
-To paint a more practical picture, imagine, we have a database with $2^{20}$ (~1 million) keys s.t. each key is 32 -bytes and each value is 1024 -bytes (1kB). We are setting up both server and client(s), on each of
+To paint a more practical picture, imagine, we have a database with $2^{20}$ (~1 million) keys s.t. each key is 32 -bytes and each value is 1024 -bytes (1kB).
+
+**ChalametPIR Protocol Steps**
+
+1) Server gets a 32 -bytes seed and the key-value database as input, returns a **6670248 -bytes (~6.36mB)** hint and **68 -bytes** Binary Fuse Filter parameters.
+2) Client receives the seed, hint and Binary Fuse Filter parameters, sets itself up.
+3) Client wants to privately look up a key in the server held key-value database, it generates an encrypted query of **4718600 -bytes (~4.5mB)**, when 3-wise XOR Binary Fuse Filter is used. If server decided to use a 4-wise XOR Binary Fuse Filter, query size would be **4521992 -bytes (~4.31mB)**. Client sends this encrypted query to server.
+4) Server computes encrypted response of **3768 -bytes (~3.68kB)**, touching every single bit of the database.
+5) Client receives the encrypted response and decrypts it.
+
+We are setting up both server and client(s), on each of
 
 Machine Type | Machine | Kernel | Compiler | Memory Read Speed
 --- | --- | --- | --- | ---
-aarch64 server | AWS EC2 `m8g.8xlarge` | `Linux 6.8.0-1021-aws aarch64` | `rustc 1.85.1 (e71f9a9a9 2025-01-27)` | 28.25 GB/s
-x86_64 server | AWS EC2 `m7i.8xlarge` | `Linux 6.8.0-1021-aws x86_64` | `rustc 1.85.1 (e71f9a9a9 2025-01-27)` | 10.33 GB/s
+(a) aarch64 server | AWS EC2 `m8g.8xlarge` | `Linux 6.8.0-1028-aws aarch64` | `rustc 1.86.0 (05f9846f8 2025-03-31)` | 28.25 GB/s
+(b) x86_64 server | AWS EC2 `m7i.8xlarge` | `Linux 6.8.0-1028-aws x86_64` | `rustc 1.86.0 (05f9846f8 2025-03-31)` | 10.33 GB/s
+(c) aarch64 server | AWS EC2 `r8g.8xlarge` | `Linux 6.8.0-1028-aws aarch64` | `rustc 1.86.0 (05f9846f8 2025-03-31)` | 28.25 GB/s
 
 and this implementation of ChalametPIR is compiled with specified compiler, in `optimized` profile. See [Cargo.toml](./Cargo.toml).
 
@@ -36,15 +47,15 @@ and this implementation of ChalametPIR is compiled with specified compiler, in `
 
 Step | `(a)` Time Taken on `aarch64` server | `(b)` Time Taken on `x86_64` server | Ratio `a / b`
 :-- | --: | --: | --:
-`server_setup` | 9.73 minutes | 22.11 minutes | 0.44
-`client_setup` | 9.43 seconds | 10.47 seconds | 0.9
-`client_query` | 309 milliseconds | 2.57 seconds | 0.12
-`server_respond` | 18.01 milliseconds | 32.16 milliseconds | 0.56
-`client_process_response` | 11.73 microseconds | 16.75 microseconds | 0.7
+`server_setup` | 9.62 minutes | 21.37 minutes | 0.45
+`client_setup` | 9.48 seconds | 8.31 seconds | 1.14
+`client_query` | 323.5 milliseconds | 2.08 seconds | 0.16
+`server_respond` | 10.06 milliseconds | 14.06 milliseconds | 0.72
+`client_process_response` | 9.44 microseconds | 13.96 microseconds | 0.68
 
 So, the median bandwidth of the `server_respond` algorithm, which needs to traverse through the whole processed database, is
-- (a) For `aarch64` server: 53.82 GB/s
-- (b) For `x86_64` server: 30.12 GB/s
+- (a) For `aarch64` server: 102.51 GB/s
+- (b) For `x86_64` server: 73.35 GB/s
 
 For demonstrating the effectiveness of offloading parts of the server-setup phase to a GPU, I benchmark it on AWS EC2 instance `g6e.8xlarge`, which features a NVIDIA L40S Tensor Core GPU and $3^{rd}$ generation AMD EPYC CPUs.
 
@@ -106,9 +117,13 @@ cargo bench --features gpu --profile optimized --bench offline_phase -q server_s
 > When benchmarking make sure you've disabled CPU frequency scaling, otherwise numbers you see can be misleading. I find https://github.com/google/benchmark/blob/b40db869/docs/reducing_variance.md helpful.
 
 ### On AWS EC2 Instance `m8g.8xlarge` (aarch64)
-![offline-phase](./bench-results/offline.m8g.8xlarge.png)
----
-![online-phase](./bench-results/online.m8g.8xlarge.png)
+![chalamet-pir-on-aws-ec2-m8g.8xlarge](./bench-results/aws-ec2-m8g.8xlarge-chalamet-pir.png)
+
+### On AWS EC2 Instance `m7i.8xlarge` (x86_64)
+![chalamet-pir-on-aws-ec2-m7i.8xlarge](./bench-results/aws-ec2-m7i.8xlarge-chalamet-pir.png)
+
+### On AWS EC2 Instance `r8g.8xlarge` (aarch64)
+![chalamet-pir-on-aws-ec2-r8g.8xlarge](./bench-results/aws-ec2-r8g.8xlarge-chalamet-pir.png)
 
 > [!NOTE]
 > More about AWS EC2 instances @ https://aws.amazon.com/ec2/instance-types.
@@ -118,9 +133,9 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.5.0"
+chalamet_pir = "=0.6.0"
 # Or, if you want to offload server-setup to a GPU.
-# chalamet_pir = { version = "=0.5.0", features = ["gpu"] }
+# chalamet_pir = { version = "=0.6.0", features = ["gpu"] }
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
 ```
@@ -188,28 +203,28 @@ Seed size                                 : 32.0B
 Hint size                                 : 207.9KB
 Filter parameters size                    : 68.0B
 Query size                                : 304.0KB
-Response size                             : 144.0B
+Response size                             : 128.0B
 
-⚠️ Random key '115560' is not present in DB
-✅ '29520' maps to 'L', in 417.284µs
-⚠️ Random key '97022' is not present in DB
-⚠️ Random key '79601' is not present in DB
-✅ '57270' maps to 'מ', in 570.426µs
-⚠️ Random key '95069' is not present in DB
-⚠️ Random key '102703' is not present in DB
-⚠️ Random key '113549' is not present in DB
-✅ '2293' maps to 'T', in 647.202µs
-⚠️ Random key '92678' is not present in DB
-⚠️ Random key '90071' is not present in DB
-✅ '61493' maps to 'f', in 552.899µs
-✅ '41360' maps to 'c', in 533.403µs
-⚠️ Random key '67047' is not present in DB
-✅ '55793' maps to 'z', in 531.056µs
-⚠️ Random key '72809' is not present in DB
-✅ '32741' maps to 'P', in 672.91µs
-✅ '29361' maps to 'T', in 530.348µs
-✅ '33143' maps to 'W', in 355.938µs
-⚠️ Random key '87591' is not present in DB
+✅ '64187' maps to 'b', in 274.995µs
+⚠️ Random key '112599' is not present in DB
+⚠️ Random key '108662' is not present in DB
+⚠️ Random key '79395' is not present in DB
+⚠️ Random key '72638' is not present in DB
+⚠️ Random key '123690' is not present in DB
+⚠️ Random key '69344' is not present in DB
+⚠️ Random key '69155' is not present in DB
+✅ '5918' maps to 'J', in 165.606µs
+⚠️ Random key '128484' is not present in DB
+⚠️ Random key '79290' is not present in DB
+⚠️ Random key '104015' is not present in DB
+⚠️ Random key '111256' is not present in DB
+⚠️ Random key '124342' is not present in DB
+⚠️ Random key '74982' is not present in DB
+⚠️ Random key '93082' is not present in DB
+✅ '32800' maps to 'b', in 233.29µs
+✅ '20236' maps to 'Q', in 233.531µs
+✅ '47334' maps to 'p', in 223.548µs
+✅ '12225' maps to 'U', in 209.217µs
 
 # --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
 
@@ -223,26 +238,26 @@ Seed size                                 : 32.0B
 Hint size                                 : 207.9KB
 Filter parameters size                    : 68.0B
 Query size                                : 292.0KB
-Response size                             : 144.0B
+Response size                             : 128.0B
 
-✅ '9445' maps to 'x', in 416.617µs
-⚠️ Random key '120774' is not present in DB
-⚠️ Random key '81310' is not present in DB
-✅ '29502' maps to 'S', in 292.054µs
-✅ '58360' maps to 'c', in 237.823µs
-⚠️ Random key '74424' is not present in DB
-⚠️ Random key '96217' is not present in DB
-✅ '60430' maps to 'X', in 380.674µs
-✅ '47703' maps to 'X', in 252.425µs
-✅ '13076' maps to 'V', in 312.977µs
-✅ '53385' maps to 'o', in 255.729µs
-⚠️ Random key '90470' is not present in DB
-✅ '46869' maps to 'h', in 275.5µs
-⚠️ Random key '127543' is not present in DB
-⚠️ Random key '105528' is not present in DB
-⚠️ Random key '76357' is not present in DB
-✅ '56523' maps to 'a', in 254.195µs
-✅ '11499' maps to 'K', in 286.938µs
-✅ '44878' maps to 'J', in 258.759µs
-⚠️ Random key '74422' is not present in DB
+✅ '13239' maps to 'T', in 241.21µs
+⚠️ Random key '112983' is not present in DB
+⚠️ Random key '89821' is not present in DB
+✅ '63385' maps to 'I', in 188.06µs
+⚠️ Random key '123914' is not present in DB
+⚠️ Random key '119919' is not present in DB
+⚠️ Random key '72903' is not present in DB
+⚠️ Random key '93634' is not present in DB
+⚠️ Random key '68582' is not present in DB
+✅ '55692' maps to 'n', in 359.112µs
+⚠️ Random key '68191' is not present in DB
+⚠️ Random key '92762' is not present in DB
+✅ '997' maps to 'v', in 302.626µs
+⚠️ Random key '123011' is not present in DB
+✅ '37638' maps to 'F', in 240.428µs
+⚠️ Random key '75802' is not present in DB
+⚠️ Random key '80496' is not present in DB
+✅ '42586' maps to 'T', in 224.29µs
+✅ '25911' maps to 'u', in 250.494µs
+✅ '15478' maps to 'S', in 257.656µs
 ```

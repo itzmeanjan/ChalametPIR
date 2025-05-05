@@ -1,6 +1,6 @@
 use crate::pir_internals::{
     binary_fuse_filter, branch_opt_util,
-    params::{HASHED_KEY_BYTE_LEN, SEED_BYTE_LEN},
+    params::{HASHED_KEY_BYTE_LEN, MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SEED_BYTE_LEN},
     serialization,
 };
 use rand::prelude::*;
@@ -35,7 +35,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
-    ///     Returns an error if either rows or cols is zero.
+    ///   Returns an error if either rows or cols is zero.
     pub fn new(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             Ok(Matrix {
@@ -59,7 +59,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive and the number of values matches the number of required elements).
-    ///     Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
+    ///   Returns an error if either rows or cols is zero, or if the number of values does not match the number of required elements.
     pub fn from_values(rows: u32, cols: u32, values: Vec<u32>) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::likely((rows > 0) && (cols > 0)) {
             if branch_opt_util::likely((rows * cols) as usize == values.len()) {
@@ -89,32 +89,391 @@ impl Matrix {
         std::mem::size_of_val(&self.rows) + std::mem::size_of_val(&self.cols) + std::mem::size_of::<u32>() * (self.rows * self.cols) as usize
     }
 
-    /// Performs the multiplication of a row vector (1xN matrix) by the transpose of a matrix (MxN).
+    pub fn row_wise_compress(self, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
+        if branch_opt_util::unlikely(!(mat_elem_bit_len >= MIN_CIPHER_TEXT_BIT_LEN && mat_elem_bit_len <= MAX_CIPHER_TEXT_BIT_LEN)) {
+            return Err(ChalametPIRError::ImpossibleEncodedDBMatrixElementBitLength);
+        }
+
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
+
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
+
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 2)] & mat_elem_mask) << (2 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                let res_num_rows = self.rows;
+                let res_num_cols = self.cols.div_ceil(COMPRESSION_FACTOR);
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..res_num_rows as usize)
+                    .flat_map(|ridx| (0..res_num_cols as usize).map(move |cidx| (ridx, cidx)))
+                    .for_each(|(ridx, cidx)| {
+                        let decompressed_elem_cidx = cidx * COMPRESSION_FACTOR as usize;
+
+                        let mut compressed_elem = self[(ridx, decompressed_elem_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 1)] & mat_elem_mask) << BITS_PER_UNCOMPRESSED_ELEMENT;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 2)] & mat_elem_mask) << (2 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 3) < self.cols as usize) {
+                            compressed_elem |= (self[(ridx, decompressed_elem_cidx + 3)] & mat_elem_mask) << (3 * BITS_PER_UNCOMPRESSED_ELEMENT);
+                        }
+
+                        res[(ridx, cidx)] = compressed_elem;
+                    });
+
+                Ok(res)
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        }
+    }
+
+    #[cfg(test)]
+    pub fn row_wise_decompress(self, mat_elem_bit_len: usize, num_cols: u32) -> Result<Matrix, ChalametPIRError> {
+        if branch_opt_util::unlikely(!(mat_elem_bit_len >= MIN_CIPHER_TEXT_BIT_LEN && mat_elem_bit_len <= MAX_CIPHER_TEXT_BIT_LEN)) {
+            return Err(ChalametPIRError::ImpossibleEncodedDBMatrixElementBitLength);
+        }
+
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
+
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+                        let decompressed_elem = self[(src_ridx, src_cidx)];
+
+                        res[(src_ridx, decompressed_elem_cidx)] = decompressed_elem & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (decompressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
+
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+
+                        res[(src_ridx, decompressed_elem_cidx)] = self[(src_ridx, src_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (self[(src_ridx, src_cidx)] >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 2)] = (self[(src_ridx, src_cidx)] >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
+
+                assert_eq!(num_cols.div_ceil(COMPRESSION_FACTOR), self.cols);
+
+                let res_num_rows = self.rows;
+                let res_num_cols = num_cols;
+
+                let mut res = unsafe { Matrix::new(res_num_rows, res_num_cols).unwrap_unchecked() };
+
+                (0..self.rows as usize)
+                    .flat_map(|src_ridx| (0..self.cols as usize).map(move |src_cidx| (src_ridx, src_cidx)))
+                    .for_each(|(src_ridx, src_cidx)| {
+                        let decompressed_elem_cidx = src_cidx * COMPRESSION_FACTOR as usize;
+
+                        res[(src_ridx, decompressed_elem_cidx)] = self[(src_ridx, src_cidx)] & mat_elem_mask;
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 1) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 1)] = (self[(src_ridx, src_cidx)] >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 2) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 2)] = (self[(src_ridx, src_cidx)] >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+
+                        if branch_opt_util::likely((decompressed_elem_cidx + 3) < num_cols as usize) {
+                            res[(src_ridx, decompressed_elem_cidx + 3)] = (self[(src_ridx, src_cidx)] >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask;
+                        }
+                    });
+
+                Ok(res)
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        }
+    }
+
+    /// Performs the multiplication of a row vector (1xN matrix) by a compressed representation of the transpose of a matrix (MxN).
     ///
     /// # Arguments
     ///
-    /// * `rhs` - The matrix to multiply with (MxN).
+    /// * `rhs` - The compressed matrix to multiply with (MxN). Decompression is performed on the fly.
     ///
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - The resulting matrix (1xM) if the input is valid.
-    ///     Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
-    pub fn row_vector_x_transposed_matrix(&self, rhs: &Matrix) -> Result<Matrix, ChalametPIRError> {
-        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == rhs.cols)) {
+    ///   Returns an error if the input is invalid (self is not a row vector, or the dimensions are incompatible).
+    pub fn row_vector_x_compressed_transposed_matrix(&self, rhs: &Matrix, decompressed_num_cols: u32, mat_elem_bit_len: usize) -> Result<Matrix, ChalametPIRError> {
+        if branch_opt_util::unlikely(!(self.rows == 1 && self.cols == decompressed_num_cols)) {
             return Err(ChalametPIRError::IncompatibleDimensionForRowVectorTransposedMatrixMultiplication);
         }
 
         let res_num_rows = self.rows;
         let res_num_cols = rhs.rows;
+        let mat_elem_mask = (1u32 << mat_elem_bit_len) - 1;
 
         let mut res_elems = vec![0u32; (res_num_rows * res_num_cols) as usize];
 
-        res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, v)| {
-            let r_idx = 0;
-            let c_idx = lin_idx;
+        match mat_elem_bit_len {
+            // Compression  factor 2
+            11..=MAX_CIPHER_TEXT_BIT_LEN => {
+                const COMPRESSION_FACTOR: u32 = 2;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
 
-            *v = (0..self.cols as usize).fold(0u32, |acc, k| acc.wrapping_add(self[(r_idx, k)].wrapping_mul(rhs[(c_idx, k)])));
-        });
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
+
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second);
+                });
+            }
+            // Compression  factor 3
+            9..=10 => {
+                const COMPRESSION_FACTOR: u32 = 3;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+                        let third = self[(r_idx, decompressed_elem_cidx + 2)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second).wrapping_add(third)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
+
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let third = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second).wrapping_add(third);
+                });
+            }
+            // Compression  factor 4
+            MIN_CIPHER_TEXT_BIT_LEN..=8 => {
+                const COMPRESSION_FACTOR: u32 = 4;
+                const BITS_PER_UNCOMPRESSED_ELEMENT: usize = (u32::BITS / COMPRESSION_FACTOR) as usize;
+
+                res_elems.par_iter_mut().enumerate().for_each(|(lin_idx, res_elem)| {
+                    let r_idx = 0;
+                    let c_idx = lin_idx;
+
+                    // First (rhs.cols - 1) compressed elements
+                    let acc = (0..(rhs.cols - 1) as usize).fold(0u32, |acc, compressed_elem_cidx| {
+                        let decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+                        let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                        let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                        let second = self[(r_idx, decompressed_elem_cidx + 1)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask);
+                        let third = self[(r_idx, decompressed_elem_cidx + 2)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+                        let fourth = self[(r_idx, decompressed_elem_cidx + 3)].wrapping_mul((compressed_elem >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask);
+
+                        acc.wrapping_add(first).wrapping_add(second).wrapping_add(third).wrapping_add(fourth)
+                    });
+
+                    // Last compressed element
+                    let compressed_elem_cidx = (rhs.cols - 1) as usize;
+                    let compressed_elem = rhs[(c_idx, compressed_elem_cidx)];
+
+                    let mut decompressed_elem_cidx = compressed_elem_cidx * COMPRESSION_FACTOR as usize;
+
+                    let first = self[(r_idx, decompressed_elem_cidx)].wrapping_mul(compressed_elem & mat_elem_mask);
+                    decompressed_elem_cidx += 1;
+
+                    let second = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> BITS_PER_UNCOMPRESSED_ELEMENT) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let third = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (2 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+                    decompressed_elem_cidx += 1;
+
+                    let fourth = if branch_opt_util::likely(decompressed_elem_cidx < self.cols as usize) {
+                        self[(r_idx, decompressed_elem_cidx)].wrapping_mul((compressed_elem >> (3 * BITS_PER_UNCOMPRESSED_ELEMENT)) & mat_elem_mask)
+                    } else {
+                        0
+                    };
+
+                    *res_elem = acc.wrapping_add(first).wrapping_add(second).wrapping_add(third).wrapping_add(fourth);
+                });
+            }
+            _ => {
+                branch_opt_util::cold();
+                panic!("Impossible cipher text bit length provided as input to the compression function !");
+            }
+        };
 
         Matrix::from_values(res_num_rows, res_num_cols, res_elems)
     }
@@ -128,7 +487,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new identity matrix if the input is valid (rows is positive).
-    ///     Returns an error if rows is zero.
+    ///   Returns an error if rows is zero.
     #[cfg(test)]
     pub fn identity(rows: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(rows == 0) {
@@ -172,7 +531,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new matrix if the input is valid (rows and cols are positive).
-    ///     Returns an error if either rows or cols is zero.
+    ///   Returns an error if either rows or cols is zero.
     pub fn generate_from_seed(rows: u32, cols: u32, seed: &[u8; SEED_BYTE_LEN]) -> Result<Matrix, ChalametPIRError> {
         let mut hasher = TurboShake128::default();
         hasher.absorb(seed);
@@ -203,7 +562,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Matrix, ChalametPIRError>` - A new row/ column vector if the input is valid (rows or cols is 1).
-    ///     Returns an error if neither rows nor cols is 1.
+    ///   Returns an error if neither rows nor cols is 1.
     pub fn sample_from_uniform_ternary_dist(rows: u32, cols: u32) -> Result<Matrix, ChalametPIRError> {
         if branch_opt_util::unlikely(!(rows == 1 || cols == 1)) {
             return Err(ChalametPIRError::InvalidDimensionForVector);
@@ -251,7 +610,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     pub fn from_kv_database<const ARITY: u32>(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -279,13 +638,9 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
-    ///     Returns an error if the key is not found or if an error occurs during value recovery.
+    ///   Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
-    fn recover_value_from_encoded_kv_database<const ARITY: u32>(
-        &self,
-        key: &[u8],
-        filter: &binary_fuse_filter::BinaryFuseFilter,
-    ) -> Result<Vec<u8>, ChalametPIRError> {
+    fn recover_value_from_encoded_kv_database<const ARITY: u32>(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         const { assert!(ARITY == 3 || ARITY == 4) }
 
         match ARITY {
@@ -309,7 +664,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     fn from_kv_database_with_3_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -390,7 +745,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<Vec<u8>, ChalametPIRError>` - The value associated with the key if found.
-    ///     Returns an error if the key is not found or if an error occurs during value recovery.
+    ///   Returns an error if the key is not found or if an error occurs during value recovery.
     #[cfg(test)]
     fn recover_value_from_3_wise_xor_filter(&self, key: &[u8], filter: &binary_fuse_filter::BinaryFuseFilter) -> Result<Vec<u8>, ChalametPIRError> {
         let mat_elem_mask = (1u32 << filter.mat_elem_bit_len) - 1;
@@ -441,7 +796,7 @@ impl Matrix {
     /// # Returns
     ///
     /// * `Result<(Matrix, BinaryFuseFilter), ChalametPIRError>` - A tuple containing the resulting matrix and the Binary Fuse Filter.
-    ///     Returns an error if filter construction fails.
+    ///   Returns an error if filter construction fails.
     fn from_kv_database_with_4_wise_xor_filter(
         db: HashMap<&[u8], &[u8]>,
         mat_elem_bit_len: usize,
@@ -740,7 +1095,12 @@ impl Neg for &Matrix {
 pub mod test {
     use crate::{
         SEED_BYTE_LEN,
-        pir_internals::{binary_fuse_filter::BinaryFuseFilter, error::ChalametPIRError, matrix::Matrix, params::SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        pir_internals::{
+            binary_fuse_filter::BinaryFuseFilter,
+            error::ChalametPIRError,
+            matrix::Matrix,
+            params::{MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
+        },
     };
     use rand::prelude::*;
     use rand_chacha::ChaCha8Rng;
@@ -786,33 +1146,38 @@ pub mod test {
     fn encode_kv_database_using_3_wise_xor_filter_and_recover_values() {
         const ARITY: u32 = 3;
 
-        const MIN_NUM_KV_PAIRS: usize = 1_000;
-        const MAX_NUM_KV_PAIRS: usize = 10_000;
+        const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+        const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+        let mut rng = ChaCha8Rng::from_os_rng();
 
-        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                let kv_db = generate_random_kv_database(num_kv_pairs);
-                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+        const NUM_TEST_ITERATIONS: usize = 100;
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+        let mut test_iter = 0;
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
-                for &key in kv_db_as_ref.keys() {
-                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                    let computed_value = db_mat
-                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
-                        .expect("Must be able to recover value from encoded key-value database matrix");
+            let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                    assert_eq!(
-                        expected_value, computed_value,
-                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                        num_kv_pairs, ARITY, mat_elem_bit_len
-                    );
-                }
+            let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            for &key in kv_db_as_ref.keys() {
+                let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                let computed_value = db_mat
+                    .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                    .expect("Must be able to recover value from encoded key-value database matrix");
+
+                assert_eq!(
+                    expected_value, computed_value,
+                    "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                    num_kv_pairs_in_db, ARITY, mat_elem_bit_len
+                );
             }
+
+            test_iter += 1;
         }
     }
 
@@ -820,33 +1185,38 @@ pub mod test {
     fn encode_kv_database_using_4_wise_xor_filter_and_recover_values() {
         const ARITY: u32 = 4;
 
-        const MIN_NUM_KV_PAIRS: usize = 1_000;
-        const MAX_NUM_KV_PAIRS: usize = 10_000;
+        const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
+        const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
-        const MIN_MAT_ELEM_BIT_LEN: usize = 7;
-        const MAX_MAT_ELEM_BIT_LEN: usize = 11;
+        let mut rng = ChaCha8Rng::from_os_rng();
 
-        for num_kv_pairs in (MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS).step_by(100) {
-            for mat_elem_bit_len in MIN_MAT_ELEM_BIT_LEN..=MAX_MAT_ELEM_BIT_LEN {
-                let kv_db = generate_random_kv_database(num_kv_pairs);
-                let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+        const NUM_TEST_ITERATIONS: usize = 100;
 
-                let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
-                    .expect("Must be able to encode key-value database as matrix");
+        let mut test_iter = 0;
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
-                for &key in kv_db_as_ref.keys() {
-                    let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
-                    let computed_value = db_mat
-                        .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
-                        .expect("Must be able to recover value from encoded key-value database matrix");
+            let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
 
-                    assert_eq!(
-                        expected_value, computed_value,
-                        "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
-                        num_kv_pairs, ARITY, mat_elem_bit_len
-                    );
-                }
+            let (db_mat, filter) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            for &key in kv_db_as_ref.keys() {
+                let expected_value = *kv_db_as_ref.get(key).expect("Value for queried key must be present");
+                let computed_value = db_mat
+                    .recover_value_from_encoded_kv_database::<ARITY>(key, &filter)
+                    .expect("Must be able to recover value from encoded key-value database matrix");
+
+                assert_eq!(
+                    expected_value, computed_value,
+                    "num_kv_pairs = {}, arity = {}, mat_elem_bit_len = {}",
+                    num_kv_pairs_in_db, ARITY, mat_elem_bit_len
+                );
             }
+
+            test_iter += 1;
         }
     }
 
@@ -922,7 +1292,7 @@ pub mod test {
     }
 
     #[test]
-    fn row_vector_transposed_matrix_multiplication_works() {
+    fn row_vector_compressed_transposed_matrix_multiplication_works() {
         const NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS: usize = 100;
         const MIN_ROW_VECTOR_DIM: u32 = 1;
         const MAX_ROW_VECTOR_DIM: u32 = 1024;
@@ -939,13 +1309,15 @@ pub mod test {
             let mat_num_rows = vec_num_cols;
             let mat_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
             let mat_num_elems = (mat_num_rows * mat_num_cols) as usize;
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let row_vector = Matrix::generate_from_seed(vec_num_rows, vec_num_cols, &seed).expect("Row vector must be generated from seed");
             let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_elems]).expect("Matrix of ones must be created");
             let transposed_all_ones = all_ones.transpose();
+            let compressed_transposed_all_ones = transposed_all_ones.row_wise_compress(mat_elem_bit_len).expect("Must be able to row-wise compress matrix");
 
             let res_row_vector = row_vector
-                .row_vector_x_transposed_matrix(&transposed_all_ones)
+                .row_vector_x_compressed_transposed_matrix(&compressed_transposed_all_ones, mat_num_rows, mat_elem_bit_len)
                 .expect("Row vector matrix multiplication must pass");
 
             let expected_res_row_vector = {
@@ -1072,5 +1444,71 @@ pub mod test {
 
         let computed_bpe = filter.bits_per_entry();
         assert!(computed_bpe <= EXPECTED_BPE.ceil());
+    }
+
+    #[test]
+    fn row_wise_compressed_matrix_can_be_decompressed_for_3_wise_xor_filter() {
+        const ARITY: u32 = 3;
+
+        const MIN_NUM_KV_PAIRS: usize = 1_000;
+        const MAX_NUM_KV_PAIRS: usize = 10_000;
+
+        let mut rng = ChaCha8Rng::from_os_rng();
+
+        const NUM_TEST_ITERATIONS: usize = 100;
+        let mut test_iter = 0;
+
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
+
+            let kv_db = generate_random_kv_database(num_kv_pairs);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+            let (db_mat, _) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            let compressed_matrix = db_mat.clone().row_wise_compress(mat_elem_bit_len).expect("Matrix compression must work");
+            let decompressed_matrix = compressed_matrix
+                .row_wise_decompress(mat_elem_bit_len, db_mat.num_cols())
+                .expect("Matrix decompresson must work");
+
+            assert_eq!(db_mat, decompressed_matrix);
+
+            test_iter += 1;
+        }
+    }
+
+    #[test]
+    fn row_wise_compressed_matrix_can_be_decompressed_for_4_wise_xor_filter() {
+        const ARITY: u32 = 4;
+
+        const MIN_NUM_KV_PAIRS: usize = 1_000;
+        const MAX_NUM_KV_PAIRS: usize = 10_000;
+
+        let mut rng = ChaCha8Rng::from_os_rng();
+
+        const NUM_TEST_ITERATIONS: usize = 100;
+        let mut test_iter = 0;
+
+        while test_iter < NUM_TEST_ITERATIONS {
+            let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
+
+            let kv_db = generate_random_kv_database(num_kv_pairs);
+            let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
+
+            let (db_mat, _) = Matrix::from_kv_database::<ARITY>(kv_db_as_ref.clone(), mat_elem_bit_len, SERVER_SETUP_MAX_ATTEMPT_COUNT)
+                .expect("Must be able to encode key-value database as matrix");
+
+            let compressed_matrix = db_mat.clone().row_wise_compress(mat_elem_bit_len).expect("Matrix compression must work");
+            let decompressed_matrix = compressed_matrix
+                .row_wise_decompress(mat_elem_bit_len, db_mat.num_cols())
+                .expect("Matrix decompresson must work");
+
+            assert_eq!(db_mat, decompressed_matrix);
+
+            test_iter += 1;
+        }
     }
 }

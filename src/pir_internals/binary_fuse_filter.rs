@@ -577,11 +577,7 @@ pub fn mix256(key: &[u64; 4], seed: &[u8; 32]) -> u64 {
     };
 
     key.iter()
-        .map(|&k| {
-            seed_words
-                .into_iter()
-                .fold(0u64, |acc, seed_word| murmur64(acc.wrapping_add(mix(k, seed_word))))
-        })
+        .map(|&k| seed_words.into_iter().fold(0u64, |acc, seed_word| murmur64(acc.wrapping_add(mix(k, seed_word)))))
         .fold(0, |acc, r| acc.overflowing_add(r).0)
 }
 

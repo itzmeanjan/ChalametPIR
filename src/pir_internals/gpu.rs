@@ -195,9 +195,8 @@ pub fn mat_x_mat(
     .map_err(|_| ChalametPIRError::VulkanDescriptorSetCreationFailed)?;
 
     let command_buffer = {
-        let mut command_buffer_builder =
-            AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
+        let mut command_buffer_builder = AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
+            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
 
         unsafe {
             command_buffer_builder
@@ -209,9 +208,7 @@ pub fn mat_x_mat(
                 .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?;
         }
 
-        command_buffer_builder
-            .build()
-            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+        command_buffer_builder.build().map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
     };
 
     command_buffer
@@ -259,9 +256,8 @@ pub fn mat_transpose(
     .map_err(|_| ChalametPIRError::VulkanDescriptorSetCreationFailed)?;
 
     let command_buffer = {
-        let mut command_buffer_builder =
-            AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
-                .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
+        let mut command_buffer_builder = AutoCommandBufferBuilder::primary(command_buffer_allocator, queue.queue_family_index(), CommandBufferUsage::OneTimeSubmit)
+            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuilderCreationFailed)?;
 
         unsafe {
             command_buffer_builder
@@ -273,9 +269,7 @@ pub fn mat_transpose(
                 .map_err(|_| ChalametPIRError::VulkanCommandBufferRecordingFailed)?;
         }
 
-        command_buffer_builder
-            .build()
-            .map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
+        command_buffer_builder.build().map_err(|_| ChalametPIRError::VulkanCommandBufferBuildingFailed)?
     };
 
     command_buffer

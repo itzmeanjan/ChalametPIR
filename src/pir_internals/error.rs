@@ -46,6 +46,7 @@ pub enum ChalametPIRError {
     ArithmeticOverflowAddingQueryIndicator,
     UnsupportedArityForBinaryFuseFilter,
     InvalidResponseVector,
+    ImpossibleEncodedDBMatrixElementBitLength,
 }
 
 impl Display for ChalametPIRError {
@@ -95,6 +96,7 @@ impl Display for ChalametPIRError {
             }
             Self::UnsupportedArityForBinaryFuseFilter => write!(f, "Binary Fuse Filter supports arity of either 3 or 4."),
             Self::InvalidResponseVector => write!(f, "Unexpected dimension of the response vector."),
+            Self::ImpossibleEncodedDBMatrixElementBitLength => write!(f, "Encoded database matrix's element bit length mustn't ever exceed 16."),
         }
     }
 }
