@@ -77,11 +77,10 @@
 //!
 //! For more see README in ChalametPIR repository @ <https://github.com/itzmeanjan/ChalametPIR>.
 
-pub use pir_internals::error::ChalametPIRError;
-pub use pir_internals::params::SEED_BYTE_LEN;
-pub mod client;
-pub mod server;
+#[cfg(feature = "gpu")]
+mod gpu;
 
-mod pir_internals;
+mod server;
 
-mod test_pir;
+pub use chalamet_pir_common::{error::ChalametPIRError, params::SEED_BYTE_LEN};
+pub use server::Server;

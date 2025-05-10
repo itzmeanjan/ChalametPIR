@@ -1,4 +1,4 @@
-use super::{branch_opt_util, error::ChalametPIRError, params};
+use crate::{branch_opt_util, error::ChalametPIRError, params};
 use std::cmp::min;
 use turboshake::TurboShake128;
 
@@ -227,7 +227,7 @@ pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
 
 #[cfg(test)]
 mod test {
-    use crate::pir_internals::{
+    use crate::{
         params,
         serialization::{decode_kv_from_row, encode_kv_as_row},
     };

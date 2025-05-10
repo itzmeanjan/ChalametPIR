@@ -1,5 +1,5 @@
 use super::{error::ChalametPIRError, params};
-use crate::pir_internals::branch_opt_util;
+use crate::branch_opt_util;
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
 use std::collections::HashMap;
@@ -435,7 +435,6 @@ impl BinaryFuseFilter {
         ))
     }
 
-    #[cfg(test)]
     pub fn bits_per_entry(&self) -> f64 {
         ((self.num_fingerprints as f64) * (self.mat_elem_bit_len as f64)) / (self.filter_size as f64)
     }

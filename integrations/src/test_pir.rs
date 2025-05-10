@@ -1,11 +1,13 @@
 #![cfg(test)]
 
-use crate::ChalametPIRError;
-use crate::pir_internals::matrix::test::generate_random_kv_database;
-use crate::{client::Client, server::Server};
+use std::collections::HashMap;
+
+use chalamet_pir_client::Client;
+use chalamet_pir_common::utils::generate_random_kv_database;
+use chalamet_pir_server::{ChalametPIRError, Server};
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
 
 #[test]
 fn test_keyword_pir_with_3_wise_xor_filter() {

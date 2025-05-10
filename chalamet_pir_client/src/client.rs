@@ -1,12 +1,10 @@
-use crate::{
-    ChalametPIRError,
-    pir_internals::{
-        binary_fuse_filter::{self, BinaryFuseFilter},
-        branch_opt_util,
-        matrix::Matrix,
-        params::{HASHED_KEY_BYTE_LEN, LWE_DIMENSION, SEED_BYTE_LEN},
-        serialization,
-    },
+use chalamet_pir_common::{
+    binary_fuse_filter::{self, BinaryFuseFilter},
+    branch_opt_util,
+    error::ChalametPIRError,
+    matrix::Matrix,
+    params::{HASHED_KEY_BYTE_LEN, LWE_DIMENSION, SEED_BYTE_LEN},
+    serialization,
 };
 use std::collections::HashMap;
 

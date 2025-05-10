@@ -1,8 +1,10 @@
-use chalamet_pir::{SEED_BYTE_LEN, client::Client, server::Server};
+use std::{collections::HashMap, time::Instant};
+
+use chalamet_pir_client::Client;
+use chalamet_pir_server::{SEED_BYTE_LEN, Server};
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
-use std::time::Instant;
 use unicode_xid::UnicodeXID;
 
 /// Generates a toy Key-Value database with a specified number of entries.

@@ -1,0 +1,46 @@
+[package]
+name = "chalamet_pir_integrations"
+version = "0.6.0"
+edition = "2024"
+resolver = "3"
+rust-version = "1.85.0"
+authors = ["Anjan Roy <hello@itzmeanjan.in>"]
+description = "Simple, Stateful, Single-Server Private Information Retrieval for Key-Value Databases"
+readme = "README.md"
+repository = "https://github.com/itzmeanjan/ChalametPIR.git"
+license = "MPL-2.0"
+keywords = [
+    "priv-info-retrieval",
+    "lwe-pir",
+    "frodo-pir",
+    "chalamet-pir",
+    "gpu",
+]
+categories = ["cryptography", "data-structures", "concurrency"]
+
+[dependencies]
+rand = "=0.9.1"
+rand_chacha = "=0.9.0"
+test-case = "=3.3.1"
+divan = "=0.1.21"
+unicode-xid = "=0.2.6"
+chalamet_pir_server = { path = "../chalamet_pir_server" }
+chalamet_pir_client = { path = "../chalamet_pir_client", features = [
+    "mutate_internal_client_state",
+] }
+
+[dev-dependencies]
+rand = "=0.9.1"
+rand_chacha = "=0.9.0"
+test-case = "=3.3.1"
+divan = "=0.1.21"
+unicode-xid = "=0.2.6"
+chalamet_pir_common = { path = "../chalamet_pir_common" }
+
+[[bench]]
+name = "offline_phase"
+harness = false
+
+[[bench]]
+name = "online_phase"
+harness = false
