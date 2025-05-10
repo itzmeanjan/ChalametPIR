@@ -39,6 +39,9 @@
 //! use rand_chacha::ChaCha8Rng;
 //!
 //! fn main() {
+//!     // Can be either 3 or 4, denoting usage of 3-wise or 4-wise xor binary fuse filter for PIR server setup.
+//!     const ARITY; u32 = 3;
+//!
 //!     let mut rng = ChaCha8Rng::from_os_rng();
 //!     let mut seed_μ = [0u8; SEED_BYTE_LEN];
 //!     rng.fill_bytes(&mut seed_μ);
@@ -47,7 +50,7 @@
 //!     db.insert(b"key1", b"value1");
 //!     db.insert(b"key2", b"value2");
 //!
-//!     let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, db).expect("Server setup failed");
+//!     let (server, hint_bytes, filter_param_bytes) = Server::setup::<ARITY>(&seed_μ, db).expect("Server setup failed");
 //!
 //!     // Start handling client PIR queries
 //!     loop {

@@ -14,10 +14,14 @@ ChalametPIR allows a client to retrieve a specific value from a key-value databa
 The protocol has two participants:
 
 **Server:**
+Implemented by [chalametpir_server](./chalametpir_server) crate.
+
 * **`setup`:** Initializes the server with a seed, a key-value database, generating a public matrix, a hint matrix, and a Binary Fuse Filter (3-wise XOR or 4-wise XOR, configurable at compile time). It returns serialized representations of the hint matrix and filter parameters. This phase can be completed offline and is completely client-agnostic. But it is very compute-intensive, which is why this library allows you to offload expensive matrix multiplication and transposition to a GPU, gated behind the opt-in `gpu` feature. For large key-value databases (e.g., with >= $2^{18}$ entries), I recommend enabling the `gpu` feature, as it can significantly reduce the cost of the server-setup phase.
 * **`respond`:** Processes a client's encrypted query, returning an encrypted response vector.
 
 **Client:**
+Implemented by [chalametpir_client](./chalametpir_client) crate.
+
 * **`setup`:** Initializes the client using the seed, serialized hint matrix and filter parameters received from the server.
 * **`query`:** Generates an encrypted PIR query for a given key, which can be sent to server.
 * **`process_response`:** Decrypts the server's response and extracts the requested value.
@@ -82,7 +86,7 @@ rustc 1.85.1 (e71f9a9a9 2025-01-27)
 If you plan to offload server-setup to GPU, you need to install Vulkan drivers and library for your target setup. I followed https://linux.how2shout.com/how-to-install-vulkan-on-ubuntu-24-04-or-22-04-lts-linux on Ubuntu 24.04 LTS, with Nvidia GPUs - it was easy to setup.
 
 ## Testing
-The `chalametpir` library includes comprehensive tests to ensure functional correctness.
+The ChalametPIR library includes comprehensive tests to ensure functional correctness.
 
 - **Property -based Tests:** Verify individual components: matrix operations (multiplication, addition), Binary Fuse Filter construction (3-wise and 4-wise XOR, including bits-per-entry (BPE) validation), and serialization/deserialization of `Matrix` and `BinaryFuseFilter`.
 - **Integration Tests:** Cover end-to-end PIR protocol functionality: key-value database encoding/decoding (parameterized by database size, key/value lengths, and filter arity), and client-server interaction to verify correct value retrieval without key disclosure (tested with both 3-wise and 4-wise XOR filters).
@@ -105,9 +109,8 @@ Performance benchmarks are included to evaluate the efficiency of the PIR scheme
 To run the benchmarks, execute the following command from the root of the project:
 
 ```bash
-# For benchmarking the online phase of the PIR, 
-# you need to enable feature `mutate_internal_client_state`.
-cargo bench --features mutate_internal_client_state --profile optimized
+# Run all benchmarks.
+cargo bench --profile optimized
 
 # For benchmarking only the server-setup phase, offloaded to the GPU.
 cargo bench --features gpu --profile optimized --bench offline_phase -q server_setup
@@ -129,135 +132,34 @@ cargo bench --features gpu --profile optimized --bench offline_phase -q server_s
 > More about AWS EC2 instances @ https://aws.amazon.com/ec2/instance-types.
 
 ## Usage
-First, add this library crate as a dependency in your Cargo.toml file.
 
-```toml
-[dependencies]
-chalametpir = "=0.6.0"
-# Or, if you want to offload server-setup to a GPU.
-# chalametpir = { version = "=0.6.0", features = ["gpu"] }
-rand = "=0.9.0"
-rand_chacha = "=0.9.0"
-```
-
-Then, let's code a very simple keyword PIR scheme:
-
-```rust
-use chalametpir::{client::Client, server::Server, SEED_BYTE_LEN};
-use rand::prelude::*;
-use rand_chacha::ChaCha8Rng;
-use std::collections::HashMap;
-
-fn main() {
-    // Example database (replace with your own)
-    let mut db: HashMap<&[u8], &[u8]> = HashMap::new();
-    db.insert(b"apple", b"red");
-    db.insert(b"banana", b"yellow");
-
-    // Server setup (offline phase)
-    let mut rng = ChaCha8Rng::from_os_rng();
-    let mut seed_μ = [0u8; SEED_BYTE_LEN]; // You'll want to generate a cryptographically secure random seed
-    rng.fill_bytes(&mut seed_μ);
-
-    let (server, hint_bytes, filter_param_bytes) = Server::setup::<3>(&seed_μ, db.clone()).expect("Server setup failed");
-
-    // Client setup (offline phase)
-    let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
-
-    // Client query (online phase)
-    let key = b"banana";
-    if let Ok(query) = client.query(key) {
-        // Send `query` to the server
-
-        // Server response (online phase)
-        let response = server.respond(&query).expect("Server failed to respond");
-
-        // Client processes the response (online phase)
-        if let Ok(value) = client.process_response(key, &response) {
-            println!("Retrieved value: '{}'", String::from_utf8_lossy(&value)); // Should print "yellow"
-        } else {
-            println!("Failed to retrieve value.");
-        }
-    } else {
-        println!("Failed to generate query.");
-    }
-}
-```
+- For understanding how PIR server library crate `chalametpir_server` can be used, read [this](./chalametpir_server/README.md).
+- While for using PIR client library crate `chalametpir_client`, read [this](./chalametpir_client/README.md).
 
 The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used to encode the KV database, which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. This implementation should allow you to run PIR queries on a KV database with at max 2^42 (~4 trillion) number of entries.
 
-I maintain one example [program](./examples/kw_pir.rs) which demonstrates usage of the ChalametPIR API.
+I maintain two example binaries, implementing PIR server and client execution flow.
 
 ```bash
-cargo run --example kw_pir --profile optimized
+# First, issue following command on one terminal window.
+$ cargo run --example server --profile optimized
+
+PIR Server listening @ 127.0.0.1:8080
+New connection from PIR client @ 127.0.0.1:43322
+Sent setup data to PIR client @ 127.0.0.1:43322
+Received query of length 200B, from PIR client @ 127.0.0.1:43322
+Sent response of length 104B, to PIR client @ 127.0.0.1:43322
+...
 ```
 
 ```bash
-# Using 3-wise XOR Binary Fuse Filter
-ChalametPIR:
-Number of entries in Key-Value Database   : 65536
-Size of each key                          : 8.0B
-Size of each value                        : 4.0B
-Arity of Binary Fuse Filter               : 3
-Seed size                                 : 32.0B
-Hint size                                 : 207.9KB
-Filter parameters size                    : 68.0B
-Query size                                : 304.0KB
-Response size                             : 128.0B
+# And then run this command on another terminal window.
+$ cargo run --example client --profile optimized
 
-✅ '64187' maps to 'b', in 274.995µs
-⚠️ Random key '112599' is not present in DB
-⚠️ Random key '108662' is not present in DB
-⚠️ Random key '79395' is not present in DB
-⚠️ Random key '72638' is not present in DB
-⚠️ Random key '123690' is not present in DB
-⚠️ Random key '69344' is not present in DB
-⚠️ Random key '69155' is not present in DB
-✅ '5918' maps to 'J', in 165.606µs
-⚠️ Random key '128484' is not present in DB
-⚠️ Random key '79290' is not present in DB
-⚠️ Random key '104015' is not present in DB
-⚠️ Random key '111256' is not present in DB
-⚠️ Random key '124342' is not present in DB
-⚠️ Random key '74982' is not present in DB
-⚠️ Random key '93082' is not present in DB
-✅ '32800' maps to 'b', in 233.29µs
-✅ '20236' maps to 'Q', in 233.531µs
-✅ '47334' maps to 'p', in 223.548µs
-✅ '12225' maps to 'U', in 209.217µs
-
-# --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- --- ---
-
-# Using 4-wise XOR Binary Fuse Filter
-ChalametPIR:
-Number of entries in Key-Value Database   : 65536
-Size of each key                          : 8.0B
-Size of each value                        : 4.0B
-Arity of Binary Fuse Filter               : 4
-Seed size                                 : 32.0B
-Hint size                                 : 207.9KB
-Filter parameters size                    : 68.0B
-Query size                                : 292.0KB
-Response size                             : 128.0B
-
-✅ '13239' maps to 'T', in 241.21µs
-⚠️ Random key '112983' is not present in DB
-⚠️ Random key '89821' is not present in DB
-✅ '63385' maps to 'I', in 188.06µs
-⚠️ Random key '123914' is not present in DB
-⚠️ Random key '119919' is not present in DB
-⚠️ Random key '72903' is not present in DB
-⚠️ Random key '93634' is not present in DB
-⚠️ Random key '68582' is not present in DB
-✅ '55692' maps to 'n', in 359.112µs
-⚠️ Random key '68191' is not present in DB
-⚠️ Random key '92762' is not present in DB
-✅ '997' maps to 'v', in 302.626µs
-⚠️ Random key '123011' is not present in DB
-✅ '37638' maps to 'F', in 240.428µs
-⚠️ Random key '75802' is not present in DB
-⚠️ Random key '80496' is not present in DB
-✅ '42586' maps to 'T', in 224.29µs
-✅ '25911' maps to 'u', in 250.494µs
-✅ '15478' maps to 'S', in 257.656µs
+Connected to PIR server @ 127.0.0.1:8080
+Received setup data from PIR server
+Generated query for key: [98, 97, 110, 97, 110, 97]
+Sent query of length 200B
+Received response of length 104B
+Retrieved value: 'yellow'
 ```
