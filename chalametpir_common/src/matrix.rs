@@ -1,17 +1,24 @@
+use std::{
+    collections::HashMap,
+    ops::{Add, Index, IndexMut, Mul},
+};
+
 use crate::{
     binary_fuse_filter, branch_opt_util,
     error::ChalametPIRError,
     params::{HASHED_KEY_BYTE_LEN, MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SEED_BYTE_LEN},
     serialization,
 };
-use rand::prelude::*;
-use rand_chacha::ChaCha8Rng;
+
 use rayon::prelude::*;
-use std::{
-    collections::HashMap,
-    ops::{Add, Index, IndexMut, Mul},
-};
 use turboshake::TurboShake128;
+
+#[cfg(not(feature = "wasm"))]
+use rand::prelude::*;
+#[cfg(not(feature = "wasm"))]
+use rand_chacha::ChaCha8Rng;
+#[cfg(feature = "wasm")]
+use tinyrand::{Rand, StdRand};
 
 #[cfg(test)]
 use std::ops::Neg;
@@ -570,17 +577,30 @@ impl Matrix {
         const TERNARY_INTERVAL_SIZE: u32 = (u32::MAX - 2) / 3;
         const TERNARY_REJECTION_SAMPLING_MAX: u32 = TERNARY_INTERVAL_SIZE * 3;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
+
         let mut vec = Matrix::new(rows, cols)?;
 
         let num_elems = vec.num_elems();
         let mut elem_idx = 0;
 
         while branch_opt_util::likely(elem_idx < num_elems) {
+            #[cfg(not(feature = "wasm"))]
             let mut val = rng.random::<u32>();
+            #[cfg(feature = "wasm")]
+            let mut val = rng.next_u32();
 
+            #[cfg(not(feature = "wasm"))]
             while branch_opt_util::unlikely(val > TERNARY_REJECTION_SAMPLING_MAX) {
                 val = rng.random::<u32>();
+            }
+
+            #[cfg(feature = "wasm")]
+            while branch_opt_util::unlikely(val > TERNARY_REJECTION_SAMPLING_MAX) {
+                val = rng.next_u32();
             }
 
             let ternary = if val <= TERNARY_INTERVAL_SIZE {
@@ -1092,6 +1112,8 @@ impl Neg for &Matrix {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashMap;
+
     use crate::{
         binary_fuse_filter::BinaryFuseFilter,
         error::ChalametPIRError,
@@ -1100,10 +1122,16 @@ mod test {
         params::{MAX_CIPHER_TEXT_BIT_LEN, MIN_CIPHER_TEXT_BIT_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
         utils::generate_random_kv_database,
     };
-    use rand::prelude::*;
-    use rand_chacha::ChaCha8Rng;
-    use std::collections::HashMap;
+
     use test_case::test_case;
+
+    #[cfg(feature = "wasm")]
+    use tinyrand::{Rand, RandRange, StdRand};
+
+    #[cfg(not(feature = "wasm"))]
+    use rand::prelude::*;
+    #[cfg(not(feature = "wasm"))]
+    use rand_chacha::ChaCha8Rng;
 
     #[test]
     fn encode_kv_database_using_3_wise_xor_filter_and_recover_values() {
@@ -1112,13 +1140,23 @@ mod test {
         const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
         const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 100;
 
         let mut test_iter = 0;
         while test_iter < NUM_TEST_ITERATIONS {
+            #[cfg(feature = "wasm")]
+            let num_kv_pairs_in_db = rng.next_range(MIN_NUM_KV_PAIRS..(MAX_NUM_KV_PAIRS + 1));
+            #[cfg(not(feature = "wasm"))]
             let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+
+            #[cfg(feature = "wasm")]
+            let mat_elem_bit_len = rng.next_range(MIN_CIPHER_TEXT_BIT_LEN..(MAX_CIPHER_TEXT_BIT_LEN + 1));
+            #[cfg(not(feature = "wasm"))]
             let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
@@ -1151,13 +1189,23 @@ mod test {
         const MIN_NUM_KV_PAIRS: usize = 1usize << 8;
         const MAX_NUM_KV_PAIRS: usize = 1usize << 16;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 100;
 
         let mut test_iter = 0;
         while test_iter < NUM_TEST_ITERATIONS {
+            #[cfg(feature = "wasm")]
+            let num_kv_pairs_in_db = rng.next_range(MIN_NUM_KV_PAIRS..(MAX_NUM_KV_PAIRS + 1));
+            #[cfg(not(feature = "wasm"))]
             let num_kv_pairs_in_db = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+
+            #[cfg(feature = "wasm")]
+            let mat_elem_bit_len = rng.next_range(MIN_CIPHER_TEXT_BIT_LEN..(MAX_CIPHER_TEXT_BIT_LEN + 1));
+            #[cfg(not(feature = "wasm"))]
             let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
 
             let kv_db = generate_random_kv_database(num_kv_pairs_in_db);
@@ -1230,15 +1278,29 @@ mod test {
         const MIN_MATRIX_DIM: u32 = 1;
         const MAX_MATRIX_DIM: u32 = 1024;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
+
+        #[cfg(not(feature = "wasm"))]
         rng.fill_bytes(&mut seed);
+        #[cfg(feature = "wasm")]
+        seed.fill_with(|| rng.next_u32() as u8);
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_MATRIX_MULTIPLICATIONS {
+            #[cfg(not(feature = "wasm"))]
             let num_rows = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_rows = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
+
+            #[cfg(not(feature = "wasm"))]
             let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_cols = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
 
             let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
             let matrix_i = Matrix::identity(num_cols).expect("Identity matrix must be created");
@@ -1260,19 +1322,37 @@ mod test {
         const MIN_ROW_VECTOR_DIM: u32 = 1;
         const MAX_ROW_VECTOR_DIM: u32 = 1024;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
+
+        #[cfg(not(feature = "wasm"))]
         rng.fill_bytes(&mut seed);
+        #[cfg(feature = "wasm")]
+        seed.fill_with(|| rng.next_u32() as u8);
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_VECTOR_MATRIX_MULTIPLICATIONS {
             let vec_num_rows = 1;
+            #[cfg(not(feature = "wasm"))]
             let vec_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+            #[cfg(feature = "wasm")]
+            let vec_num_cols = rng.next_range(MIN_ROW_VECTOR_DIM..(MAX_ROW_VECTOR_DIM + 1));
+
             let mat_num_rows = vec_num_cols;
+            #[cfg(not(feature = "wasm"))]
             let mat_num_cols = rng.random_range(MIN_ROW_VECTOR_DIM..=MAX_ROW_VECTOR_DIM);
+            #[cfg(feature = "wasm")]
+            let mat_num_cols = rng.next_range(MIN_ROW_VECTOR_DIM..(MAX_ROW_VECTOR_DIM + 1));
+
             let mat_num_elems = (mat_num_rows * mat_num_cols) as usize;
+            #[cfg(not(feature = "wasm"))]
             let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
+            #[cfg(feature = "wasm")]
+            let mat_elem_bit_len = rng.next_range(MIN_CIPHER_TEXT_BIT_LEN..(MAX_CIPHER_TEXT_BIT_LEN + 1));
 
             let row_vector = Matrix::generate_from_seed(vec_num_rows, vec_num_cols, &seed).expect("Row vector must be generated from seed");
             let all_ones = Matrix::from_values(mat_num_rows, mat_num_cols, vec![1; mat_num_elems]).expect("Matrix of ones must be created");
@@ -1301,15 +1381,29 @@ mod test {
         const MIN_MATRIX_DIM: u32 = 1;
         const MAX_MATRIX_DIM: u32 = 1024;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
+
+        #[cfg(not(feature = "wasm"))]
         rng.fill_bytes(&mut seed);
+        #[cfg(feature = "wasm")]
+        seed.fill_with(|| rng.next_u32() as u8);
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_MATRIX_ADDITIONS {
+            #[cfg(not(feature = "wasm"))]
             let num_rows = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_rows = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
+
+            #[cfg(not(feature = "wasm"))]
             let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_cols = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
 
             let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
             let matrix_neg_a = (-&matrix_a).expect("Must be able to negate matrix");
@@ -1357,15 +1451,29 @@ mod test {
         const MIN_MATRIX_DIM: u32 = 1;
         const MAX_MATRIX_DIM: u32 = 1024;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         let mut seed = [0u8; SEED_BYTE_LEN];
+
+        #[cfg(not(feature = "wasm"))]
         rng.fill_bytes(&mut seed);
+        #[cfg(feature = "wasm")]
+        seed.fill_with(|| rng.next_u32() as u8);
 
         let mut current_attempt_count = 0;
         while current_attempt_count < NUM_ATTEMPT_MATRIX_SERIALIZATIONS {
+            #[cfg(not(feature = "wasm"))]
             let num_rows = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_rows = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
+
+            #[cfg(not(feature = "wasm"))]
             let num_cols = rng.random_range(MIN_MATRIX_DIM..=MAX_MATRIX_DIM);
+            #[cfg(feature = "wasm")]
+            let num_cols = rng.next_range(MIN_MATRIX_DIM..(MAX_MATRIX_DIM + 1));
 
             let matrix_a = Matrix::generate_from_seed(num_rows, num_cols, &seed).expect("Matrix must be generated from seed");
             let matrix_a_bytes = matrix_a.to_bytes();
@@ -1416,14 +1524,24 @@ mod test {
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 100;
         let mut test_iter = 0;
 
         while test_iter < NUM_TEST_ITERATIONS {
+            #[cfg(not(feature = "wasm"))]
             let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            #[cfg(feature = "wasm")]
+            let num_kv_pairs = rng.next_range(MIN_NUM_KV_PAIRS..(MAX_NUM_KV_PAIRS + 1));
+
+            #[cfg(not(feature = "wasm"))]
             let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
+            #[cfg(feature = "wasm")]
+            let mat_elem_bit_len = rng.next_range(MIN_CIPHER_TEXT_BIT_LEN..(MAX_CIPHER_TEXT_BIT_LEN + 1));
 
             let kv_db = generate_random_kv_database(num_kv_pairs);
             let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();
@@ -1449,14 +1567,24 @@ mod test {
         const MIN_NUM_KV_PAIRS: usize = 1_000;
         const MAX_NUM_KV_PAIRS: usize = 10_000;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         const NUM_TEST_ITERATIONS: usize = 100;
         let mut test_iter = 0;
 
         while test_iter < NUM_TEST_ITERATIONS {
+            #[cfg(not(feature = "wasm"))]
             let num_kv_pairs = rng.random_range(MIN_NUM_KV_PAIRS..=MAX_NUM_KV_PAIRS);
+            #[cfg(feature = "wasm")]
+            let num_kv_pairs = rng.next_range(MIN_NUM_KV_PAIRS..(MAX_NUM_KV_PAIRS + 1));
+
+            #[cfg(not(feature = "wasm"))]
             let mat_elem_bit_len = rng.random_range(MIN_CIPHER_TEXT_BIT_LEN..=MAX_CIPHER_TEXT_BIT_LEN);
+            #[cfg(feature = "wasm")]
+            let mat_elem_bit_len = rng.next_range(MIN_CIPHER_TEXT_BIT_LEN..(MAX_CIPHER_TEXT_BIT_LEN + 1));
 
             let kv_db = generate_random_kv_database(num_kv_pairs);
             let kv_db_as_ref = kv_db.iter().map(|(k, v)| (k.as_slice(), v.as_slice())).collect::<HashMap<&[u8], &[u8]>>();

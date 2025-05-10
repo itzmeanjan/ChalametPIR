@@ -1,9 +1,15 @@
-use super::{error::ChalametPIRError, params};
-use crate::branch_opt_util;
-use rand::prelude::*;
-use rand_chacha::ChaCha20Rng;
 use std::collections::HashMap;
+
+use super::{branch_opt_util, error::ChalametPIRError, params};
 use turboshake::TurboShake128;
+
+#[cfg(feature = "wasm")]
+use tinyrand::{Rand, StdRand};
+
+#[cfg(not(feature = "wasm"))]
+use rand::prelude::*;
+#[cfg(not(feature = "wasm"))]
+use rand_chacha::ChaCha20Rng;
 
 #[derive(Clone, Debug)]
 pub struct BinaryFuseFilter {
@@ -87,10 +93,17 @@ impl BinaryFuseFilter {
         let mut ultimate_size = 0;
 
         let mut seed = [0u8; 32];
+
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha20Rng::from_os_rng();
 
         for _ in 0..max_attempt_count {
+            #[cfg(not(feature = "wasm"))]
             rng.fill_bytes(&mut seed);
+            #[cfg(feature = "wasm")]
+            seed.fill_with(|| rng.next_u32() as u8);
 
             for (idx, val) in start_pos.iter_mut().enumerate() {
                 *val = (((idx as u64) * (db_size as u64)) >> block_bits) as usize;
@@ -289,10 +302,17 @@ impl BinaryFuseFilter {
         let mut ultimate_size = 0;
 
         let mut seed = [0u8; 32];
+
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha20Rng::from_os_rng();
 
         for _ in 0..max_attempt_count {
+            #[cfg(not(feature = "wasm"))]
             rng.fill_bytes(&mut seed);
+            #[cfg(feature = "wasm")]
+            seed.fill_with(|| rng.next_u32() as u8);
 
             for (idx, val) in start_pos.iter_mut().enumerate().take(start_pos_len) {
                 *val = (((idx as u64) * (db_size as u64)) >> block_bits) as usize;
