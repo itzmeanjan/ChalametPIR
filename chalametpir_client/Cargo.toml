@@ -20,10 +20,12 @@ keywords = [
 categories = ["cryptography", "data-structures", "concurrency"]
 
 [dependencies]
-chalametpir_common = { path = "../chalametpir_common", version = "=0.6.0" }
+chalametpir_common = { path = "../chalametpir_common", version = "=0.6.0", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "=1.45.0", features = ["full"] }
 
 [features]
+wasm = ["chalametpir_common/wasm"]
+default = ["chalametpir_common/default"]
 mutate_internal_client_state = []
