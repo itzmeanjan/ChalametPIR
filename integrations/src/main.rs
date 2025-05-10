@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 
-use chalamet_pir_client::Client;
-use chalamet_pir_server::{SEED_BYTE_LEN, Server};
+use chalametpir_client::Client;
+use chalametpir_server::{SEED_BYTE_LEN, Server};
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;

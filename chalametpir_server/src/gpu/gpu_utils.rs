@@ -1,26 +1,26 @@
 pub use std::sync::Arc;
 pub use vulkano::{
-    VulkanLibrary,
     buffer::Subbuffer,
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
     command_buffer::allocator::StandardCommandBufferAllocator,
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, PrimaryCommandBufferAbstract},
-    descriptor_set::{DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator},
+    descriptor_set::{allocator::StandardDescriptorSetAllocator, DescriptorSet, WriteDescriptorSet},
+    device::{physical::PhysicalDeviceType, DeviceCreateInfo, DeviceExtensions, QueueCreateInfo, QueueFlags},
     device::{Device, Queue},
-    device::{DeviceCreateInfo, DeviceExtensions, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::StandardMemoryAllocator,
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
     pipeline::{
-        ComputePipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo, compute::ComputePipelineCreateInfo,
-        layout::PipelineDescriptorSetLayoutCreateInfo,
+        compute::ComputePipelineCreateInfo, layout::PipelineDescriptorSetLayoutCreateInfo, ComputePipeline, Pipeline, PipelineBindPoint, PipelineLayout,
+        PipelineShaderStageCreateInfo,
     },
     sync::GpuFuture,
+    VulkanLibrary,
 };
 
 use super::{mat_transpose_shader, mat_x_mat_shader};
 use crate::ChalametPIRError;
-use chalamet_pir_common::matrix::Matrix;
+use chalametpir_common::matrix::Matrix;
 
 pub fn setup_gpu() -> Result<(Arc<Device>, Arc<Queue>, Arc<StandardMemoryAllocator>, Arc<StandardCommandBufferAllocator>), ChalametPIRError> {
     let library = VulkanLibrary::new().map_err(|_| ChalametPIRError::VulkanLibraryNotFound)?;

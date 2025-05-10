@@ -82,7 +82,7 @@ rustc 1.85.1 (e71f9a9a9 2025-01-27)
 If you plan to offload server-setup to GPU, you need to install Vulkan drivers and library for your target setup. I followed https://linux.how2shout.com/how-to-install-vulkan-on-ubuntu-24-04-or-22-04-lts-linux on Ubuntu 24.04 LTS, with Nvidia GPUs - it was easy to setup.
 
 ## Testing
-The `chalamet_pir` library includes comprehensive tests to ensure functional correctness.
+The `chalametpir` library includes comprehensive tests to ensure functional correctness.
 
 - **Property -based Tests:** Verify individual components: matrix operations (multiplication, addition), Binary Fuse Filter construction (3-wise and 4-wise XOR, including bits-per-entry (BPE) validation), and serialization/deserialization of `Matrix` and `BinaryFuseFilter`.
 - **Integration Tests:** Cover end-to-end PIR protocol functionality: key-value database encoding/decoding (parameterized by database size, key/value lengths, and filter arity), and client-server interaction to verify correct value retrieval without key disclosure (tested with both 3-wise and 4-wise XOR filters).
@@ -133,9 +133,9 @@ First, add this library crate as a dependency in your Cargo.toml file.
 
 ```toml
 [dependencies]
-chalamet_pir = "=0.6.0"
+chalametpir = "=0.6.0"
 # Or, if you want to offload server-setup to a GPU.
-# chalamet_pir = { version = "=0.6.0", features = ["gpu"] }
+# chalametpir = { version = "=0.6.0", features = ["gpu"] }
 rand = "=0.9.0"
 rand_chacha = "=0.9.0"
 ```
@@ -143,7 +143,7 @@ rand_chacha = "=0.9.0"
 Then, let's code a very simple keyword PIR scheme:
 
 ```rust
-use chalamet_pir::{client::Client, server::Server, SEED_BYTE_LEN};
+use chalametpir::{client::Client, server::Server, SEED_BYTE_LEN};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use std::collections::HashMap;

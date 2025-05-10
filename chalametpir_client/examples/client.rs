@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use chalamet_pir_client::{Client, SEED_BYTE_LEN};
+use chalametpir_client::{Client, SEED_BYTE_LEN};
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;

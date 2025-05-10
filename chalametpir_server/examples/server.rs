@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::{collections::HashMap, error::Error};
 
-use chalamet_pir_server::{SEED_BYTE_LEN, Server};
+use chalametpir_server::{SEED_BYTE_LEN, Server};
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;

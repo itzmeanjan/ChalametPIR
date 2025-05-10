@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "chalamet_pir_client",
-    "chalamet_pir_common",
-    "chalamet_pir_server",
+    "chalametpir_client",
+    "chalametpir_common",
+    "chalametpir_server",
     "integrations",
 ]
 resolver = "3"

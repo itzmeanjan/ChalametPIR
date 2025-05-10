@@ -10,4 +10,4 @@ This crate provides common utilities and data structures used by both the client
 - Parameters: Constants and parameters used in the ChalametPIR protocol.
 
 > [!NOTE]
-> This crate is not supposed to be used by you on its own, rather it is a common dependency of both `chalamet_pir_server` and `chalamet_pir_client` crates.
+> This crate is not supposed to be used by you on its own, rather it is a common dependency of both `chalametpir_server` and `chalametpir_client` crates.

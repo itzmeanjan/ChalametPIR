@@ -2,9 +2,9 @@
 
 use std::collections::HashMap;
 
-use chalamet_pir_client::Client;
-use chalamet_pir_common::utils::generate_random_kv_database;
-use chalamet_pir_server::{ChalametPIRError, Server};
+use chalametpir_client::Client;
+use chalametpir_common::utils::generate_random_kv_database;
+use chalametpir_server::{ChalametPIRError, Server};
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;

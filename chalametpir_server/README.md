@@ -18,13 +18,13 @@ Add these dependencies to your `Cargo.toml`:
 ```toml
 rand = "=0.9.1"
 rand_chacha = "=0.9.0"
-chalamet_pir_server = "=0.6.0"
+chalametpir_server = "=0.6.0"
 ```
 
 ```rust
 use std::collections::HashMap;
 
-use chalamet_pir_server::{SEED_BYTE_LEN, Server};
+use chalametpir_server::{SEED_BYTE_LEN, Server};
 
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -52,6 +52,8 @@ fn main() {
             // Send the response to the client...
             println!("Generated response of size: {} bytes", response.len());
         }
+        
+        break;
     }
 }
 ```

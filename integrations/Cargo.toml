@@ -1,5 +1,5 @@
 [package]
-name = "chalamet_pir_integrations"
+name = "chalametpir_integrations"
 version = "0.6.0"
 edition = "2024"
 resolver = "3"
@@ -14,15 +14,15 @@ publish = false
 rand = "=0.9.1"
 rand_chacha = "=0.9.0"
 unicode-xid = "=0.2.6"
-chalamet_pir_server = { path = "../chalamet_pir_server" }
-chalamet_pir_client = { path = "../chalamet_pir_client", features = [
+chalametpir_server = { path = "../chalametpir_server" }
+chalametpir_client = { path = "../chalametpir_client", features = [
     "mutate_internal_client_state",
 ] }
 
 [dev-dependencies]
 test-case = "=3.3.1"
 divan = "=0.1.21"
-chalamet_pir_common = { path = "../chalamet_pir_common" }
+chalametpir_common = { path = "../chalametpir_common" }
 
 [[bench]]
 name = "offline_phase"

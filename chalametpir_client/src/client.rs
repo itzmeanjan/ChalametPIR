@@ -1,4 +1,4 @@
-use chalamet_pir_common::{
+use chalametpir_common::{
     binary_fuse_filter::{self, BinaryFuseFilter},
     branch_opt_util,
     error::ChalametPIRError,

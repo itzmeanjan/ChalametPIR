@@ -1,4 +1,4 @@
-use chalamet_pir_common::{
+use chalametpir_common::{
     branch_opt_util,
     error::ChalametPIRError,
     matrix::Matrix,

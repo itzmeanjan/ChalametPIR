@@ -18,15 +18,11 @@ Key components:
 Add these dependencies to your `Cargo.toml`:
 
 ```toml
-rand = "=0.9.1"
-rand_chacha = "=0.9.0"
-chalamet_pir_client = "=0.6.0"
+chalametpir_client = "=0.6.0"
 ```
 
 ```rust
-use chalamet_pir_client::{Client, SEED_BYTE_LEN};
-use rand::prelude::*;
-use rand_chacha::ChaCha8Rng;
+use chalametpir_client::{Client, SEED_BYTE_LEN};
 
 fn main() {
     // Assume seed, hint_bytes and filter_param_bytes are received from the PIR server
