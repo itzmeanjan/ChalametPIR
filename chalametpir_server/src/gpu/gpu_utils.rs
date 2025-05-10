@@ -1,21 +1,21 @@
 pub use std::sync::Arc;
 pub use vulkano::{
+    VulkanLibrary,
     buffer::Subbuffer,
     buffer::{Buffer, BufferCreateInfo, BufferUsage},
     command_buffer::allocator::StandardCommandBufferAllocator,
     command_buffer::{AutoCommandBufferBuilder, CommandBufferUsage, CopyBufferInfo, PrimaryCommandBufferAbstract},
-    descriptor_set::{allocator::StandardDescriptorSetAllocator, DescriptorSet, WriteDescriptorSet},
-    device::{physical::PhysicalDeviceType, DeviceCreateInfo, DeviceExtensions, QueueCreateInfo, QueueFlags},
+    descriptor_set::{DescriptorSet, WriteDescriptorSet, allocator::StandardDescriptorSetAllocator},
     device::{Device, Queue},
+    device::{DeviceCreateInfo, DeviceExtensions, QueueCreateInfo, QueueFlags, physical::PhysicalDeviceType},
     instance::{Instance, InstanceCreateFlags, InstanceCreateInfo},
     memory::allocator::StandardMemoryAllocator,
     memory::allocator::{AllocationCreateInfo, MemoryTypeFilter},
     pipeline::{
-        compute::ComputePipelineCreateInfo, layout::PipelineDescriptorSetLayoutCreateInfo, ComputePipeline, Pipeline, PipelineBindPoint, PipelineLayout,
-        PipelineShaderStageCreateInfo,
+        ComputePipeline, Pipeline, PipelineBindPoint, PipelineLayout, PipelineShaderStageCreateInfo, compute::ComputePipelineCreateInfo,
+        layout::PipelineDescriptorSetLayoutCreateInfo,
     },
     sync::GpuFuture,
-    VulkanLibrary,
 };
 
 use super::{mat_transpose_shader, mat_x_mat_shader};
