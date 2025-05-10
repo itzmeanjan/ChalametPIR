@@ -49,3 +49,6 @@ fn main() {
     }
 }
 ```
+
+> [!NOTE]
+> More documentation on ChalametPIR [here](../README.md).
