@@ -30,19 +30,22 @@ fn main() {
     let hint_bytes = vec![0u8; 0];
     let filter_param_bytes = vec![0u8; 0];
 
-    let mut client = Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes).expect("Client setup failed");
-
-    let key = b"example_key";
-    if let Ok(query) = client.query(key) {
-        println!("Generated query for key: {:?}", key);
-
-        // Send query to PIR server
-
-        let response = vec![0u8; 0];
-        if let Ok(value) = client.process_response(key, &response) {
-            println!("Received response {:?}", response);
+    match Client::setup(&seed_μ, &hint_bytes, &filter_param_bytes) {
+        Ok(mut client) => {
+            let key = b"example_key";
+            if let Ok(query) = client.query(key) {
+                println!("Generated query for key: {:?}", key);
+                // Send query to PIR server
+                let response = vec![0u8; 0];
+                if let Ok(value) = client.process_response(key, &response) {
+                    println!("Received response {:?}", response);
+                }
+            }
         }
-    }
+        Err(err) => {
+            println!("Client setup failed: {}", err);
+        }
+    };
 }
 ```
 
