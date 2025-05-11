@@ -14,8 +14,7 @@ keywords = [
     "lwe-pir",
     "frodo-pir",
     "chalamet-pir",
-    "pir-server",
-    "key-value-databases",
+    "wasm",
 ]
 categories = ["cryptography", "data-structures", "concurrency"]
 

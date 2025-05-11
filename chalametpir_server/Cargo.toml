@@ -15,8 +15,6 @@ keywords = [
     "frodo-pir",
     "chalamet-pir",
     "gpu",
-    "pir-server",
-    "key-value-databases",
 ]
 categories = ["cryptography", "data-structures", "concurrency"]
 
