@@ -21,7 +21,10 @@
 //!
 //! ```toml
 //! [dependencies]
-//! chalametpir_client = "=0.6.0"
+//! chalametpir_client = "=0.7.0"
+//!
+//! # Or, if you want to run the client on wasm environments.
+//! # chalametpir_client = { version = "=0.7.0", features = "wasm", default-features = false}
 //! ```
 //!
 //! Then, you can use it in your code:

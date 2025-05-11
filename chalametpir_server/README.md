@@ -18,7 +18,7 @@ Add these dependencies to your `Cargo.toml`:
 ```toml
 rand = "=0.9.1"
 rand_chacha = "=0.9.0"
-chalametpir_server = "=0.6.0"
+chalametpir_server = "=0.7.0"
 ```
 
 ```rust

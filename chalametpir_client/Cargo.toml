@@ -1,6 +1,6 @@
 [package]
 name = "chalametpir_client"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2024"
 resolver = "3"
 rust-version = "1.85.0"
@@ -20,7 +20,7 @@ keywords = [
 categories = ["cryptography", "data-structures", "concurrency"]
 
 [dependencies]
-chalametpir_common = { path = "../chalametpir_common", version = "=0.6.0", default-features = false }
+chalametpir_common = { path = "../chalametpir_common", version = "=0.7.0", default-features = false }
 
 [dev-dependencies]
 tokio = { version = "=1.45.0", features = ["full"] }
