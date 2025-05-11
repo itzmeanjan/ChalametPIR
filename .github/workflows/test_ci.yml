@@ -38,5 +38,13 @@ jobs:
       - name: Build and Test on ${{ matrix.os }}
         run: cargo test --profile test-release
 
-      - name: Run Example on ${{ matrix.os }}
-        run: cargo run --example kw_pir --profile optimized
+      - name: Build ChalametPIR Client Crate for wasm32 target
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build -p chalametpir_client --target wasm32-unknown-unknown --features wasm --no-default-features --profile test-release
+
+      - name: Run ChalametPIR Common Crate Tests on wasm32 target
+        run: |
+          rustup target add wasm32-wasip1
+          curl https://wasmtime.dev/install.sh -sSf | bash
+          cargo test -p chalametpir_common --target wasm32-wasip1 --features wasm --no-default-features --profile test-release
