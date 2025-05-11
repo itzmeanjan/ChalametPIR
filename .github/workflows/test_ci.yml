@@ -46,5 +46,5 @@ jobs:
       - name: Run ChalametPIR Common Crate Tests on wasm32 target
         run: |
           rustup target add wasm32-wasip1
-          curl https://wasmtime.dev/install.sh -sSf | bash
+          cargo install wasmtime-cli --locked
           cargo test -p chalametpir_common --target wasm32-wasip1 --features wasm --no-default-features --profile test-release
