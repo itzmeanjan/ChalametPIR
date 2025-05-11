@@ -11,3 +11,9 @@ This crate provides common utilities and data structures used by both the client
 
 > [!NOTE]
 > This crate is not supposed to be used by you on its own, rather it is a common dependency of both `chalametpir_server` and `chalametpir_client` crates.
+
+> [!IMPORTANT]
+> This crate is Web Assembly environment friendly. So you can use it in wasm family of targets, by enabling `wasm` feature.
+
+> [!NOTE]
+> More documentation on ChalametPIR [here](../README.md).

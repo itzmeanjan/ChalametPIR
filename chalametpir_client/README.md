@@ -49,5 +49,8 @@ fn main() {
 }
 ```
 
+> [!IMPORTANT]
+> ChalametPIR clients can run in-browser, by enabling `wasm` feature.
+
 > [!NOTE]
 > More documentation on ChalametPIR [here](../README.md).

@@ -20,7 +20,7 @@ Implemented by [chalametpir_server](./chalametpir_server) crate.
 * **`respond`:** Processes a client's encrypted query, returning an encrypted response vector.
 
 **Client:**
-Implemented by [chalametpir_client](./chalametpir_client) crate.
+Implemented by [chalametpir_client](./chalametpir_client) crate. PIR clients can run in-browser, by enabling `wasm` (Web Assembly) feature.
 
 * **`setup`:** Initializes the client using the seed, serialized hint matrix and filter parameters received from the server.
 * **`query`:** Generates an encrypted PIR query for a given key, which can be sent to server.
@@ -100,6 +100,12 @@ cargo test --profile test-release
 
 # For testing if offloading to GPU works as expected.
 cargo test --features gpu --profile test-release
+
+# Testing chalametpir-common lib crate on web assembly target, using `wasmtime`.
+# Note, chalametpir-server lib crate is not wasm friendly.
+rustup target add wasm32-unknown-unknown wasm32-wasip1
+cargo install wasmtime-cli --locked
+cargo test -p chalametpir_common --target wasm32-wasip1 --features wasm --no-default-features --profile test-release
 ```
 
 
@@ -136,7 +142,10 @@ cargo bench --features gpu --profile optimized --bench offline_phase -q server_s
 - For understanding how PIR server library crate `chalametpir_server` can be used, read [this](./chalametpir_server/README.md).
 - While for using PIR client library crate `chalametpir_client`, read [this](./chalametpir_client/README.md).
 
-The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used to encode the KV database, which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. This implementation should allow you to run PIR queries on a KV database with at max 2^42 (~4 trillion) number of entries.
+The constant parameter `ARITY` (3 or 4) in `Server::setup` controls the type of Binary Fuse Filter used to encode the KV database, which affects size of the query vector and the encoded database dimensions, stored in-memory server-side. 
+
+> [!IMPORTANT]
+> This implementation should allow you to run PIR queries on a KV database with at max 2^42 (~4 trillion) number of entries. There doesn't exist any limit on how large each key or value needs to be. Keys and values can be of variable length. If values have variable length, database encoder routine pads it to the maximum value byte length present in that key-value database.
 
 I maintain two example binaries, implementing PIR server and client execution flow.
 

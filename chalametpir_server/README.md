@@ -61,5 +61,8 @@ fn main() {
 }
 ```
 
+> [!IMPORTANT]
+> This crate allows you to offload compute-heavy server-setup phase to a GPU, if you enable `gpu` feature.
+
 > [!NOTE]
 > More documentation on ChalametPIR [here](../README.md).
