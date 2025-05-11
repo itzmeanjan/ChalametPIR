@@ -1,4 +1,4 @@
-use super::{branch_opt_util, error::ChalametPIRError, params};
+use crate::{branch_opt_util, error::ChalametPIRError, params};
 use std::cmp::min;
 use turboshake::TurboShake128;
 
@@ -227,13 +227,19 @@ pub fn u64_to_le_bytes(word: u64, bytes: &mut [u8]) {
 
 #[cfg(test)]
 mod test {
-    use crate::pir_internals::{
+    use crate::{
         params,
         serialization::{decode_kv_from_row, encode_kv_as_row},
     };
-    use rand::prelude::*;
-    use rand_chacha::ChaCha8Rng;
     use turboshake::TurboShake128;
+
+    #[cfg(feature = "wasm")]
+    use tinyrand::{Rand, StdRand};
+
+    #[cfg(not(feature = "wasm"))]
+    use rand::prelude::*;
+    #[cfg(not(feature = "wasm"))]
+    use rand_chacha::ChaCha8Rng;
 
     #[test]
     fn encode_kv_as_row_and_recover() {
@@ -246,6 +252,9 @@ mod test {
         const MIN_MAT_ELEM_BIT_LEN: usize = 7;
         const MAX_MAT_ELEM_BIT_LEN: usize = 11;
 
+        #[cfg(feature = "wasm")]
+        let mut rng = StdRand::default();
+        #[cfg(not(feature = "wasm"))]
         let mut rng = ChaCha8Rng::from_os_rng();
 
         for key_byte_len in MIN_KEY_BYTE_LEN..=MAX_KEY_BYTE_LEN {
@@ -254,8 +263,15 @@ mod test {
                     let mut key = vec![0u8; key_byte_len];
                     let mut value = vec![0u8; value_byte_len];
 
+                    #[cfg(not(feature = "wasm"))]
                     rng.fill_bytes(&mut key);
+                    #[cfg(feature = "wasm")]
+                    key.fill_with(|| rng.next_u32() as u8);
+
+                    #[cfg(not(feature = "wasm"))]
                     rng.fill_bytes(&mut value);
+                    #[cfg(feature = "wasm")]
+                    value.fill_with(|| rng.next_u32() as u8);
 
                     let hashed_key = {
                         let mut hasher = TurboShake128::default();

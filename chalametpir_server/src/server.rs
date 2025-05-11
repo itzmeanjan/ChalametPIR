@@ -1,14 +1,13 @@
-#[cfg(feature = "gpu")]
-use crate::pir_internals::gpu;
-use crate::{
-    ChalametPIRError,
-    pir_internals::{
-        branch_opt_util,
-        matrix::Matrix,
-        params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
-    },
+use chalametpir_common::{
+    branch_opt_util,
+    error::ChalametPIRError,
+    matrix::Matrix,
+    params::{LWE_DIMENSION, SEED_BYTE_LEN, SERVER_SETUP_MAX_ATTEMPT_COUNT},
 };
 use std::collections::HashMap;
+
+#[cfg(feature = "gpu")]
+use crate::gpu::gpu_utils;
 
 /// Represents the server in the Keyword Private Information Retrieval (PIR) scheme ChalametPIR.
 ///
@@ -115,7 +114,7 @@ impl Server {
 
         let pub_mat_a = unsafe { Matrix::generate_from_seed(pub_mat_a_num_rows, pub_mat_a_num_cols, seed_μ).unwrap_unchecked() };
 
-        let (device, queue, mem_alloc, cmd_buf_alloc) = gpu::setup_gpu()?;
+        let (device, queue, mem_alloc, cmd_buf_alloc) = gpu_utils::setup_gpu()?;
 
         let hint_mat_m_num_rows = pub_mat_a_num_rows;
         let hint_mat_m_num_cols = parsed_db_mat_d.num_cols();
@@ -125,12 +124,12 @@ impl Server {
         let parsed_db_mat_d_byte_len = parsed_db_mat_d.num_bytes() as u64;
         let parsed_db_mat_d_wg_count = [parsed_db_mat_d.num_rows().div_ceil(8), parsed_db_mat_d.num_cols().div_ceil(8), 1];
 
-        let pub_mat_a_buf = gpu::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), pub_mat_a)?;
-        let parsed_db_mat_d_buf = gpu::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), parsed_db_mat_d.clone())?;
-        let hint_mat_m_buf = gpu::get_empty_host_readable_buffer(mem_alloc.clone(), hint_mat_m_byte_len)?;
-        let transposed_parsed_db_mat_d_buf = gpu::get_empty_host_readable_buffer(mem_alloc.clone(), parsed_db_mat_d_byte_len)?;
+        let pub_mat_a_buf = gpu_utils::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), pub_mat_a)?;
+        let parsed_db_mat_d_buf = gpu_utils::transfer_mat_to_device(queue.clone(), mem_alloc.clone(), cmd_buf_alloc.clone(), parsed_db_mat_d.clone())?;
+        let hint_mat_m_buf = gpu_utils::get_empty_host_readable_buffer(mem_alloc.clone(), hint_mat_m_byte_len)?;
+        let transposed_parsed_db_mat_d_buf = gpu_utils::get_empty_host_readable_buffer(mem_alloc.clone(), parsed_db_mat_d_byte_len)?;
 
-        gpu::mat_x_mat(
+        gpu_utils::mat_x_mat(
             device.clone(),
             queue.clone(),
             cmd_buf_alloc.clone(),
@@ -140,7 +139,7 @@ impl Server {
             hint_mat_m_wg_count,
         )?;
 
-        gpu::mat_transpose(
+        gpu_utils::mat_transpose(
             device.clone(),
             queue.clone(),
             cmd_buf_alloc.clone(),

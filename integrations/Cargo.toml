@@ -1,0 +1,32 @@
+[package]
+name = "chalametpir_integrations"
+version = "0.7.0"
+edition = "2024"
+resolver = "3"
+rust-version = "1.85.0"
+authors = ["Anjan Roy <hello@itzmeanjan.in>"]
+description = "Integration tests, benchmarks and examples for ChalametPIR"
+repository = "https://github.com/itzmeanjan/ChalametPIR.git"
+license = "MPL-2.0"
+publish = false
+
+[dev-dependencies]
+test-case = "=3.3.1"
+divan = "=0.1.21"
+rand = "=0.9.1"
+rand_chacha = "=0.9.0"
+unicode-xid = "=0.2.6"
+chalametpir_common = { path = "../chalametpir_common" }
+chalametpir_server = { path = "../chalametpir_server" }
+chalametpir_client = { path = "../chalametpir_client", features = [
+    "mutate_internal_client_state",
+] }
+
+[[bench]]
+name = "offline_phase"
+harness = false
+
+[[bench]]
+name = "online_phase"
+harness = false
+required-features = ["chalametpir_client/mutate_internal_client_state"]
