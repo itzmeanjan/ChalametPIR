@@ -40,7 +40,7 @@
 //!
 //! fn main() {
 //!     // Can be either 3 or 4, denoting usage of 3-wise or 4-wise xor binary fuse filter for PIR server setup.
-//!     const ARITY; u32 = 3;
+//!     const ARITY: u32 = 3;
 //!
 //!     let mut rng = ChaCha8Rng::from_os_rng();
 //!     let mut seed_μ = [0u8; SEED_BYTE_LEN];
