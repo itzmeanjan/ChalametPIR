@@ -10,19 +10,17 @@ repository = "https://github.com/itzmeanjan/ChalametPIR.git"
 license = "MPL-2.0"
 publish = false
 
-[dependencies]
+[dev-dependencies]
+test-case = "=3.3.1"
+divan = "=0.1.21"
 rand = "=0.9.1"
 rand_chacha = "=0.9.0"
 unicode-xid = "=0.2.6"
+chalametpir_common = { path = "../chalametpir_common" }
 chalametpir_server = { path = "../chalametpir_server" }
 chalametpir_client = { path = "../chalametpir_client", features = [
     "mutate_internal_client_state",
 ] }
-
-[dev-dependencies]
-test-case = "=3.3.1"
-divan = "=0.1.21"
-chalametpir_common = { path = "../chalametpir_common" }
 
 [[bench]]
 name = "offline_phase"
@@ -31,3 +29,4 @@ harness = false
 [[bench]]
 name = "online_phase"
 harness = false
+required-features = ["chalametpir_client/mutate_internal_client_state"]
